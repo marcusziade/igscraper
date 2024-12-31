@@ -10,6 +10,10 @@ import (
 	"time"
 )
 
+const (
+	retryDelay = time.Second * 2 // Wait 2 seconds between retries
+)
+
 type InstagramResponse struct {
 	RequiresToLogin bool   `json:"requires_to_login"`
 	Data            Data   `json:"data"`
@@ -21,6 +25,7 @@ type Data struct {
 }
 
 type User struct {
+	ID                       string                   `json:"id"`
 	EdgeOwnerToTimelineMedia EdgeOwnerToTimelineMedia `json:"edge_owner_to_timeline_media"`
 }
 
@@ -94,83 +99,131 @@ func main() {
 }
 
 func downloadPhotos(client *http.Client, headers http.Header, username, outputDir string) error {
-	maxRetries := 3
-	retryDelay := time.Second * 2
+	maxAttempts := 3
+	hasMore := true
+	endCursor := ""
+	var userId string
 
-	// Using the Instagram GraphQL API endpoint
+	// First request to get the user ID
 	endpoint := fmt.Sprintf("https://www.instagram.com/api/v1/users/web_profile_info/?username=%s", username)
-	fmt.Printf("Fetching profile from: %s\n", endpoint)
+	req, err := http.NewRequest("GET", endpoint, nil)
+	if err != nil {
+		return fmt.Errorf("error creating request: %v", err)
+	}
+	req.Header = headers
 
-	for i := 0; i < maxRetries; i++ {
-		fmt.Printf("Attempt %d/%d\n", i+1, maxRetries)
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("error making initial request: %v", err)
+	}
+	defer resp.Body.Close()
 
-		req, err := http.NewRequest("GET", endpoint, nil)
-		if err != nil {
-			return fmt.Errorf("error creating request: %v", err)
-		}
-
-		req.Header = headers
-		fmt.Println("Sending request with headers:", headers)
-
-		resp, err := client.Do(req)
-		if err != nil {
-			fmt.Printf("Request error on attempt %d: %v\n", i+1, err)
-			if i == maxRetries-1 {
-				return fmt.Errorf("error making request: %v", err)
-			}
-			time.Sleep(retryDelay)
-			continue
-		}
-		defer resp.Body.Close()
-
-		fmt.Printf("Response status code: %d\n", resp.StatusCode)
-		fmt.Println("Response headers:", resp.Header)
-
-		if resp.StatusCode != http.StatusOK {
-			bodyBytes, _ := io.ReadAll(resp.Body)
-			fmt.Printf("Response body: %s\n", string(bodyBytes))
-
-			if resp.StatusCode == 401 || resp.StatusCode == 403 {
-				return fmt.Errorf("authentication required or invalid credentials")
-			}
-
-			if i == maxRetries-1 {
-				return fmt.Errorf("received non-200 status code: %d", resp.StatusCode)
-			}
-			time.Sleep(retryDelay)
-			continue
-		}
-
-		var result InstagramResponse
-		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-			return fmt.Errorf("error decoding JSON: %v", err)
-		}
-
-		if result.RequiresToLogin {
-			return fmt.Errorf("this profile requires authentication")
-		}
-
-		fmt.Printf("Found %d media items\n", len(result.Data.User.EdgeOwnerToTimelineMedia.Edges))
-
-		for i, edge := range result.Data.User.EdgeOwnerToTimelineMedia.Edges {
-			if !edge.Node.IsVideo {
-				fmt.Printf("Downloading photo %d/%d (ID: %s)\n", i+1, len(result.Data.User.EdgeOwnerToTimelineMedia.Edges), edge.Node.ID)
-				err := downloadPhoto(client, headers, edge.Node.DisplayURL, outputDir, edge.Node.Shortcode)
-				if err != nil {
-					fmt.Printf("Error downloading photo %s: %v\n", edge.Node.ID, err)
-					continue
-				}
-				// Add delay between downloads to avoid rate limiting
-				time.Sleep(time.Second)
-			} else {
-				fmt.Printf("Skipping video %d/%d (ID: %s)\n", i+1, len(result.Data.User.EdgeOwnerToTimelineMedia.Edges), edge.Node.ID)
-			}
-		}
-
-		return nil
+	var result InstagramResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return fmt.Errorf("error decoding initial JSON: %v", err)
 	}
 
-	return fmt.Errorf("max retries exceeded")
+	// Get the user ID from the first response
+	userId = result.Data.User.ID // Add ID field to User struct
+
+	for attempt := 1; hasMore && attempt <= maxAttempts; attempt++ {
+		// Only log attempt number if we're fetching a new page
+		if endCursor == "" {
+			fmt.Printf("Fetching first page...\n")
+		} else {
+			fmt.Printf("Fetching next page (attempt %d/%d)...\n", attempt, maxAttempts)
+		}
+
+		var currentEndpoint string
+		if endCursor == "" {
+			currentEndpoint = endpoint
+		} else {
+			// Use the correct query hash and variables format
+			variables := fmt.Sprintf(`{"id":"%s","first":50,"after":"%s"}`, userId, endCursor)
+			currentEndpoint = fmt.Sprintf("https://www.instagram.com/graphql/query/?query_hash=69cba40317214236af40e7efa697781d&variables=%s", variables)
+		}
+
+		fmt.Printf("Fetching page with endpoint: %s\n", currentEndpoint)
+
+		for i := 0; i < maxAttempts; i++ {
+			fmt.Printf("Attempt %d/%d\n", i+1, maxAttempts)
+
+			req, err := http.NewRequest("GET", currentEndpoint, nil)
+			if err != nil {
+				return fmt.Errorf("error creating request: %v", err)
+			}
+
+			req.Header = headers
+			fmt.Println("Sending request with headers:", headers)
+
+			resp, err := client.Do(req)
+			if err != nil {
+				fmt.Printf("Request error on attempt %d: %v\n", i+1, err)
+				if i == maxAttempts-1 {
+					return fmt.Errorf("error making request: %v", err)
+				}
+				time.Sleep(retryDelay)
+				continue
+			}
+			defer resp.Body.Close()
+
+			fmt.Printf("Response status code: %d\n", resp.StatusCode)
+			fmt.Println("Response headers:", resp.Header)
+
+			if resp.StatusCode != http.StatusOK {
+				bodyBytes, _ := io.ReadAll(resp.Body)
+				fmt.Printf("Response body: %s\n", string(bodyBytes))
+
+				if resp.StatusCode == 401 || resp.StatusCode == 403 {
+					return fmt.Errorf("authentication required or invalid credentials")
+				}
+
+				if i == maxAttempts-1 {
+					return fmt.Errorf("received non-200 status code: %d", resp.StatusCode)
+				}
+				time.Sleep(retryDelay)
+				continue
+			}
+
+			var result InstagramResponse
+			if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+				return fmt.Errorf("error decoding JSON: %v", err)
+			}
+
+			if result.RequiresToLogin {
+				return fmt.Errorf("this profile requires authentication")
+			}
+
+			media := result.Data.User.EdgeOwnerToTimelineMedia
+			fmt.Printf("Processing %d media items\n", len(media.Edges))
+
+			for i, edge := range media.Edges {
+				if !edge.Node.IsVideo {
+					fmt.Printf("Downloading photo %d/%d (ID: %s)\n", i+1, len(media.Edges), edge.Node.ID)
+					err := downloadPhoto(client, headers, edge.Node.DisplayURL, outputDir, edge.Node.Shortcode)
+					if err != nil {
+						fmt.Printf("Error downloading photo %s: %v\n", edge.Node.ID, err)
+						continue
+					}
+					// Add delay between downloads to avoid rate limiting
+					time.Sleep(time.Second)
+				} else {
+					fmt.Printf("Skipping video %d/%d (ID: %s)\n", i+1, len(media.Edges), edge.Node.ID)
+				}
+			}
+
+			// Check if there are more pages
+			pageInfo := media.PageInfo
+			if pageInfo.HasNextPage {
+				endCursor = pageInfo.EndCursor
+				attempt = 0 // Reset attempt counter when moving to next page
+			} else {
+				hasMore = false
+			}
+		}
+	}
+
+	return nil
 }
 
 func downloadPhoto(client *http.Client, headers http.Header, url, outputDir, shortcode string) error {
@@ -217,4 +270,3 @@ func downloadPhoto(client *http.Client, headers http.Header, url, outputDir, sho
 	fmt.Printf("Successfully downloaded photo: %s (%d bytes)\n", filename, written)
 	return nil
 }
-

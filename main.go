@@ -11,8 +11,50 @@ import (
 )
 
 const (
-	retryDelay = time.Second * 2 // Wait 2 seconds between retries
+	retryDelay = time.Second * 2  // Wait 2 seconds between retries
+	rateLimit  = time.Second * 18 // One request every 18 seconds = ~200 requests per hour
+	maxPerHour = 180              // Stay under the 200/hour limit to be safe
 )
+
+// RateLimiter implements a rolling window rate limiter
+type RateLimiter struct {
+	requests []time.Time
+	window   time.Duration
+	limit    int
+}
+
+func NewRateLimiter(window time.Duration, limit int) *RateLimiter {
+	return &RateLimiter{
+		requests: make([]time.Time, 0),
+		window:   window,
+		limit:    limit,
+	}
+}
+
+func (r *RateLimiter) Wait() {
+	now := time.Now()
+
+	// Remove old requests outside the window
+	windowStart := now.Add(-r.window)
+	i := 0
+	for i < len(r.requests) && r.requests[i].Before(windowStart) {
+		i++
+	}
+	if i > 0 {
+		r.requests = r.requests[i:]
+	}
+
+	// If we're at the limit, wait until we have room
+	if len(r.requests) >= r.limit {
+		waitTime := r.requests[0].Add(r.window).Sub(now)
+		if waitTime > 0 {
+			time.Sleep(waitTime)
+		}
+		r.requests = r.requests[1:]
+	}
+
+	r.requests = append(r.requests, now)
+}
 
 type InstagramResponse struct {
 	RequiresToLogin bool   `json:"requires_to_login"`
@@ -73,18 +115,17 @@ func main() {
 		Timeout: 30 * time.Second,
 	}
 
-	// You'll need to get these values from your browser after logging in
 	headers := http.Header{
 		"User-Agent":       []string{"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"},
 		"Accept":           []string{"*/*"},
 		"Accept-Language":  []string{"en-US,en;q=0.5"},
-		"X-IG-App-ID":      []string{"936619743392459"}, // Instagram web app ID
+		"X-IG-App-ID":      []string{"936619743392459"},
 		"X-Requested-With": []string{"XMLHttpRequest"},
 		"Connection":       []string{"keep-alive"},
 		"Referer":          []string{"https://www.instagram.com/"},
 		"Cookie": []string{
-			"sessionid=YOUR_SESSION_ID;", // Add your session ID here
-			"csrftoken=YOUR_CSRF_TOKEN;", // Add your CSRF token here
+			"sessionid=YOUR_SESSION_ID;",
+			"csrftoken=YOUR_CSRF_TOKEN;",
 		},
 	}
 
@@ -102,7 +143,9 @@ func downloadPhotos(client *http.Client, headers http.Header, username, outputDi
 	maxAttempts := 3
 	hasMore := true
 	endCursor := ""
-	var userId string
+	downloadedPhotos := make(map[string]bool) // Track downloaded photos by shortcode
+	// Create a rate limiter for 180 requests per hour (conservative limit)
+	rateLimiter := NewRateLimiter(time.Hour, maxPerHour)
 
 	// First request to get the user ID
 	endpoint := fmt.Sprintf("https://www.instagram.com/api/v1/users/web_profile_info/?username=%s", username)
@@ -123,11 +166,9 @@ func downloadPhotos(client *http.Client, headers http.Header, username, outputDi
 		return fmt.Errorf("error decoding initial JSON: %v", err)
 	}
 
-	// Get the user ID from the first response
-	userId = result.Data.User.ID // Add ID field to User struct
+	userId := result.Data.User.ID
 
 	for attempt := 1; hasMore && attempt <= maxAttempts; attempt++ {
-		// Only log attempt number if we're fetching a new page
 		if endCursor == "" {
 			fmt.Printf("Fetching first page...\n")
 		} else {
@@ -138,7 +179,6 @@ func downloadPhotos(client *http.Client, headers http.Header, username, outputDi
 		if endCursor == "" {
 			currentEndpoint = endpoint
 		} else {
-			// Use the correct query hash and variables format
 			variables := fmt.Sprintf(`{"id":"%s","first":50,"after":"%s"}`, userId, endCursor)
 			currentEndpoint = fmt.Sprintf("https://www.instagram.com/graphql/query/?query_hash=69cba40317214236af40e7efa697781d&variables=%s", variables)
 		}
@@ -154,7 +194,7 @@ func downloadPhotos(client *http.Client, headers http.Header, username, outputDi
 			}
 
 			req.Header = headers
-			fmt.Println("Sending request with headers:", headers)
+			rateLimiter.Wait() // Wait for rate limit
 
 			resp, err := client.Do(req)
 			if err != nil {
@@ -166,9 +206,6 @@ func downloadPhotos(client *http.Client, headers http.Header, username, outputDi
 				continue
 			}
 			defer resp.Body.Close()
-
-			fmt.Printf("Response status code: %d\n", resp.StatusCode)
-			fmt.Println("Response headers:", resp.Header)
 
 			if resp.StatusCode != http.StatusOK {
 				bodyBytes, _ := io.ReadAll(resp.Body)
@@ -197,22 +234,51 @@ func downloadPhotos(client *http.Client, headers http.Header, username, outputDi
 			media := result.Data.User.EdgeOwnerToTimelineMedia
 			fmt.Printf("Processing %d media items\n", len(media.Edges))
 
+			// Check if this page had any new photos to download
+			hasNewPhotos := false
+			for _, edge := range media.Edges {
+				if !edge.Node.IsVideo && !downloadedPhotos[edge.Node.Shortcode] {
+					hasNewPhotos = true
+					break
+				}
+			}
+
+			if !hasNewPhotos && endCursor != "" {
+				fmt.Println("No new photos found in this page, stopping pagination")
+				hasMore = false
+				break
+			}
+
+			// Download new photos
 			for i, edge := range media.Edges {
 				if !edge.Node.IsVideo {
+					if downloadedPhotos[edge.Node.Shortcode] {
+						fmt.Printf("Skipping already downloaded photo %s\n", edge.Node.Shortcode)
+						continue
+					}
+
+					// Check if file exists on disk
+					filename := filepath.Join(outputDir, fmt.Sprintf("%s.jpg", edge.Node.Shortcode))
+					if _, err := os.Stat(filename); err == nil {
+						fmt.Printf("File already exists: %s\n", filename)
+						downloadedPhotos[edge.Node.Shortcode] = true
+						continue
+					}
+
 					fmt.Printf("Downloading photo %d/%d (ID: %s)\n", i+1, len(media.Edges), edge.Node.ID)
 					err := downloadPhoto(client, headers, edge.Node.DisplayURL, outputDir, edge.Node.Shortcode)
 					if err != nil {
 						fmt.Printf("Error downloading photo %s: %v\n", edge.Node.ID, err)
 						continue
 					}
-					// Add delay between downloads to avoid rate limiting
-					time.Sleep(time.Second)
+					downloadedPhotos[edge.Node.Shortcode] = true
+					rateLimiter.Wait() // Wait for rate limit between downloads
 				} else {
 					fmt.Printf("Skipping video %d/%d (ID: %s)\n", i+1, len(media.Edges), edge.Node.ID)
 				}
 			}
 
-			// Check if there are more pages
+			// Handle pagination
 			pageInfo := media.PageInfo
 			if pageInfo.HasNextPage {
 				endCursor = pageInfo.EndCursor
@@ -220,6 +286,7 @@ func downloadPhotos(client *http.Client, headers http.Header, username, outputDi
 			} else {
 				hasMore = false
 			}
+			break
 		}
 	}
 
@@ -234,7 +301,6 @@ func downloadPhoto(client *http.Client, headers http.Header, url, outputDir, sho
 		return fmt.Errorf("error creating request: %v", err)
 	}
 
-	// Use a different set of headers for the image download
 	req.Header = http.Header{
 		"User-Agent": headers["User-Agent"],
 		"Accept":     []string{"image/webp,*/*"},
@@ -247,15 +313,11 @@ func downloadPhoto(client *http.Client, headers http.Header, url, outputDir, sho
 	}
 	defer resp.Body.Close()
 
-	fmt.Printf("Photo download status code: %d\n", resp.StatusCode)
-
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("received non-200 status code: %d", resp.StatusCode)
 	}
 
 	filename := filepath.Join(outputDir, fmt.Sprintf("%s.jpg", shortcode))
-	fmt.Printf("Saving photo to: %s\n", filename)
-
 	out, err := os.Create(filename)
 	if err != nil {
 		return fmt.Errorf("error creating file: %v", err)

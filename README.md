@@ -10,6 +10,7 @@ A powerful Instagram photo downloader with cyberpunk aesthetics, built in Go.
 - 📁 Automatic duplicate detection and skipping
 - 🔔 Cross-platform desktop notifications
 - 🎨 Cyberpunk-themed terminal UI with progress tracking
+- 💻 Beautiful interactive TUI mode with real-time statistics
 - ⚙️ Flexible configuration via files, environment variables, or CLI flags
 - 🔄 Resume capability for interrupted downloads
 
@@ -61,11 +62,15 @@ Available flags:
 - `--concurrent`: Number of concurrent downloads (default: 3)
 - `--rate-limit`: Requests per minute (default: 60)
 - `--notifications`: Enable desktop notifications (default: true)
+- `--tui`: Enable beautiful terminal UI with real-time progress (default: false)
 - `--config`: Path to configuration file
 
 Example:
 ```bash
 ./igscraper --session-id "your_session" --csrf-token "your_token" --output "./photos" zuck
+
+# With interactive TUI
+./igscraper --tui username
 ```
 
 ### Configuration File
@@ -110,6 +115,22 @@ The scraper implements intelligent rate limiting:
 
 ## Advanced Features
 
+### Interactive TUI Mode
+
+Enable the beautiful terminal UI for real-time progress tracking:
+
+```bash
+./igscraper --tui username
+```
+
+The TUI provides:
+- Real-time download progress bars
+- Live speed and ETA calculations
+- Rate limit visualization
+- Download queue status
+- System logs with color coding
+- Interactive controls (pause/resume with 'p', quit with 'q')
+
 ### Concurrent Downloads
 Configure the number of simultaneous downloads:
 ```bash
@@ -138,7 +159,8 @@ igscraper/
 │   ├── scraper/        # Core scraping logic
 │   ├── storage/        # File storage and deduplication
 │   ├── ratelimit/      # Rate limiting algorithms
-│   └── ui/             # Terminal UI components
+│   └── ui/             # Terminal UI and notifications
+│       └── tui/        # Interactive terminal UI
 ```
 
 ### Running Tests

@@ -32,6 +32,7 @@ type Scraper struct {
 	config         *config.Config
 	logger         logger.Logger
 	checkpointMgr  *checkpoint.Manager
+	tui            ui.TUI
 }
 
 // New creates a new Scraper instance
@@ -72,6 +73,11 @@ func New(cfg *config.Config) (*Scraper, error) {
 	}, nil
 }
 
+// SetTUI sets the terminal UI for the scraper
+func (s *Scraper) SetTUI(tui ui.TUI) {
+	s.tui = tui
+}
+
 // getOutputDir determines the output directory for a username
 func (s *Scraper) getOutputDir(username string) string {
 	if s.config.Output.CreateUserFolders {
@@ -92,7 +98,11 @@ func (s *Scraper) DownloadUserPhotosWithResume(username string, resume bool, for
 
 // downloadUserPhotosWithOptions is the internal implementation with checkpoint support
 func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, forceRestart bool) error {
-	ui.PrintHighlight("\n[INITIATING EXTRACTION SEQUENCE]\n")
+	if s.tui == nil {
+		ui.PrintHighlight("\n[INITIATING EXTRACTION SEQUENCE]\n")
+	} else {
+		s.tui.LogInfo("Initiating extraction sequence for user: %s", username)
+	}
 	
 	// Initialize checkpoint manager
 	checkpointMgr, err := checkpoint.NewManager(username)
@@ -239,12 +249,25 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 				"cooldown_time": "1 hour",
 			})
 			
-			s.notifier.SendNotification("RATE LIMIT", "Cooling down for 1 hour...")
-			ui.PrintWarning("\n[COOLING DOWN FOR 1 HOUR]\n")
+			if s.tui != nil {
+				// Update rate limit in TUI
+				resetTime := time.Now().Add(time.Hour)
+				s.tui.UpdateRateLimit(s.config.RateLimit.RequestsPerMinute, s.config.RateLimit.RequestsPerMinute, resetTime)
+				s.tui.LogWarning("Rate limit reached, cooling down for 1 hour")
+			} else {
+				s.notifier.SendNotification("RATE LIMIT", "Cooling down for 1 hour...")
+				ui.PrintWarning("\n[COOLING DOWN FOR 1 HOUR]\n")
+			}
+			
 			s.rateLimiter.Wait()
 			
 			s.logger.Info("Rate limit cooldown completed, resuming")
-			s.notifier.SendNotification("RESUMING", "Continuing extraction process")
+			if s.tui != nil {
+				s.tui.LogInfo("Rate limit cooldown completed, resuming")
+				s.tui.UpdateRateLimit(0, s.config.RateLimit.RequestsPerMinute, time.Now().Add(time.Minute))
+			} else {
+				s.notifier.SendNotification("RESUMING", "Continuing extraction process")
+			}
 		}
 
 		// Fetch media batch
@@ -308,6 +331,13 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 				continue
 			}
 			
+			// Notify TUI about new download
+			if s.tui != nil {
+				// Estimate size (we don't have actual size until download starts)
+				estimatedSize := int64(500000) // 500KB estimate
+				s.tui.StartDownload(edge.Node.Shortcode, username, edge.Node.Shortcode+".jpg", estimatedSize)
+			}
+			
 			totalQueued++
 			s.logger.DebugWithFields("Download job queued", map[string]interface{}{
 				"username":      username,
@@ -366,7 +396,11 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 		}
 	}
 	
-	ui.PrintSuccess("\n[EXTRACTION COMPLETED SUCCESSFULLY]\n")
+	if s.tui == nil {
+		ui.PrintSuccess("\n[EXTRACTION COMPLETED SUCCESSFULLY]\n")
+	} else {
+		s.tui.LogSuccess("Extraction completed successfully for user: %s", username)
+	}
 	return nil
 }
 
@@ -445,7 +479,14 @@ func (s *Scraper) processDownloadResults(results <-chan downloader.DownloadResul
 		if result.Success {
 			logger.LogDownload(username, result.Job.Shortcode, "photo", true, nil)
 			s.tracker.IncrementDownloaded()
-			s.tracker.PrintProgress()
+			
+			if s.tui != nil {
+				// Complete the download in TUI
+				s.tui.CompleteDownload(result.Job.Shortcode)
+			} else {
+				// Use regular progress printing
+				s.tracker.PrintProgress()
+			}
 			
 			// Record successful download in checkpoint
 			if s.checkpointMgr != nil {
@@ -467,7 +508,14 @@ func (s *Scraper) processDownloadResults(results <-chan downloader.DownloadResul
 			})
 		} else {
 			logger.LogDownload(username, result.Job.Shortcode, "photo", false, result.Error)
-			ui.PrintError("\nError downloading %s: %v\n", result.Job.Shortcode, result.Error)
+			
+			if s.tui != nil {
+				// Fail the download in TUI
+				s.tui.FailDownload(result.Job.Shortcode, result.Error)
+			} else {
+				// Use regular error printing
+				ui.PrintError("\nError downloading %s: %v\n", result.Job.Shortcode, result.Error)
+			}
 			
 			s.logger.ErrorWithFields("Download failed", map[string]interface{}{
 				"username":  username,

@@ -56,8 +56,12 @@ func PrintInfo(label string, value string) {
 }
 
 // PrintWarning prints a warning message in yellow
-func PrintWarning(msg string) {
-	fmt.Println(Yellow(msg))
+func PrintWarning(msg string, args ...interface{}) {
+	if len(args) > 0 {
+		fmt.Println(Yellow(msg + ": " + fmt.Sprintf("%v", args[0])))
+	} else {
+		fmt.Println(Yellow(msg))
+	}
 }
 
 // PrintHighlight prints a highlighted message in magenta

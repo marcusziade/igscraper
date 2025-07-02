@@ -2,35 +2,30 @@ package scraper_test
 
 import (
 	"fmt"
-	"net/http"
 	"time"
 
+	"igscraper/pkg/config"
 	"igscraper/pkg/scraper"
 )
 
 func ExampleScraper_DownloadUserPhotos() {
-	// Setup HTTP client
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-	}
-
-	// Setup headers (you need valid session cookies)
-	headers := http.Header{
-		"User-Agent":       []string{"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
-		"Accept":           []string{"*/*"},
-		"Accept-Language":  []string{"en-US,en;q=0.5"},
-		"X-IG-App-ID":      []string{"936619743392459"},
-		"X-Requested-With": []string{"XMLHttpRequest"},
-		"Connection":       []string{"keep-alive"},
-		"Referer":          []string{"https://www.instagram.com/"},
-		"Cookie": []string{
-			"sessionid=YOUR_SESSION_ID;",
-			"csrftoken=YOUR_CSRF_TOKEN;",
-		},
-	}
-
+	// Setup configuration
+	cfg := config.DefaultConfig()
+	
+	// Configure Instagram credentials (you need valid session cookies)
+	cfg.Instagram.SessionID = "YOUR_SESSION_ID"
+	cfg.Instagram.CSRFToken = "YOUR_CSRF_TOKEN"
+	
+	// Configure download settings
+	cfg.Download.ConcurrentDownloads = 5
+	cfg.Download.DownloadTimeout = 30 * time.Second
+	
+	// Set output directory
+	cfg.Output.BaseDirectory = "./downloads"
+	cfg.Output.CreateUserFolders = true
+	
 	// Create scraper
-	s, err := scraper.New(client, headers, "username_photos")
+	s, err := scraper.New(cfg)
 	if err != nil {
 		fmt.Printf("Failed to create scraper: %v\n", err)
 		return

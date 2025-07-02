@@ -7,8 +7,10 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
+	"igscraper/internal/downloader"
 	"igscraper/pkg/config"
 	"igscraper/pkg/instagram"
 	"igscraper/pkg/logger"
@@ -102,6 +104,25 @@ func (s *Scraper) DownloadUserPhotos(username string) error {
 	}
 	s.storageManager = storageManager
 	
+	// Create worker pool for concurrent downloads
+	workerPool := downloader.NewWorkerPool(
+		s.config.Download.ConcurrentDownloads,
+		s.client,
+		s.storageManager,
+		s.rateLimiter,
+		s.logger,
+	)
+	workerPool.Start()
+	defer workerPool.Stop()
+	
+	// Start result processor goroutine
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		s.processDownloadResults(workerPool.Results(), username)
+	}()
+	
 	// Get initial user data
 	s.logger.DebugWithFields("Fetching user ID", map[string]interface{}{
 		"username": username,
@@ -120,11 +141,12 @@ func (s *Scraper) DownloadUserPhotos(username string) error {
 
 	hasMore := true
 	endCursor := ""
+	totalQueued := 0
 
 	for hasMore {
 		s.tracker.PrintBatchStatus()
 
-		// Rate limit check
+		// Rate limit check for API calls (not downloads)
 		if !s.rateLimiter.Allow() {
 			logger.LogRateLimit("instagram_api", 3600) // 1 hour in seconds
 			s.logger.WarnWithFields("Rate limit reached, cooling down", map[string]interface{}{
@@ -165,7 +187,7 @@ func (s *Scraper) DownloadUserPhotos(username string) error {
 			"has_next":    pageInfo.HasNextPage,
 		})
 
-		// Process media items
+		// Queue media items for download
 		for _, edge := range media {
 			if edge.Node.IsVideo {
 				s.logger.DebugWithFields("Skipping video", map[string]interface{}{
@@ -176,27 +198,32 @@ func (s *Scraper) DownloadUserPhotos(username string) error {
 				continue
 			}
 
-			if s.storageManager.IsDownloaded(edge.Node.Shortcode) {
-				s.logger.DebugWithFields("Photo already downloaded", map[string]interface{}{
+			// Submit job to worker pool
+			job := downloader.DownloadJob{
+				URL:       edge.Node.DisplayURL,
+				Shortcode: edge.Node.Shortcode,
+				Username:  username,
+			}
+			
+			err := workerPool.Submit(job)
+			if err != nil {
+				s.logger.WithError(err).WithFields(map[string]interface{}{
 					"username":  username,
 					"shortcode": edge.Node.Shortcode,
-				})
+				}).Error("Failed to submit download job")
 				continue
 			}
-
-			err := s.downloadPhoto(edge.Node.DisplayURL, edge.Node.Shortcode)
-			if err != nil {
-				logger.LogDownload(username, edge.Node.Shortcode, "photo", false, err)
-				ui.PrintError("\nError downloading %s: %v\n", edge.Node.Shortcode, err)
-				continue
-			}
-
-			logger.LogDownload(username, edge.Node.Shortcode, "photo", true, nil)
-			s.tracker.IncrementDownloaded()
-			s.tracker.PrintProgress()
+			
+			totalQueued++
+			s.logger.DebugWithFields("Download job queued", map[string]interface{}{
+				"username":      username,
+				"shortcode":     edge.Node.Shortcode,
+				"queue_size":    workerPool.GetQueueSize(),
+				"total_queued":  totalQueued,
+			})
 		}
 
-			// Handle pagination
+		// Handle pagination
 		if pageInfo.HasNextPage {
 			endCursor = pageInfo.EndCursor
 			s.logger.DebugWithFields("Moving to next page", map[string]interface{}{
@@ -210,6 +237,16 @@ func (s *Scraper) DownloadUserPhotos(username string) error {
 			})
 		}
 	}
+
+	// Wait for downloads to complete
+	s.logger.InfoWithFields("All jobs queued, waiting for downloads to complete", map[string]interface{}{
+		"username":     username,
+		"total_queued": totalQueued,
+	})
+	
+	// Stop the worker pool and wait for result processor
+	workerPool.Stop()
+	wg.Wait()
 
 	s.logger.InfoWithFields("Photo download completed successfully", map[string]interface{}{
 		"username":        username,
@@ -356,6 +393,34 @@ func (s *Scraper) fetchMediaBatch(username, userID, endCursor string) ([]instagr
 	})
 	
 	return media.Edges, media.PageInfo, nil
+}
+
+// processDownloadResults processes results from the worker pool
+func (s *Scraper) processDownloadResults(results <-chan downloader.DownloadResult, username string) {
+	for result := range results {
+		if result.Success {
+			logger.LogDownload(username, result.Job.Shortcode, "photo", true, nil)
+			s.tracker.IncrementDownloaded()
+			s.tracker.PrintProgress()
+			
+			s.logger.DebugWithFields("Download completed successfully", map[string]interface{}{
+				"username":  username,
+				"shortcode": result.Job.Shortcode,
+				"duration":  result.Duration,
+				"size":      result.Size,
+			})
+		} else {
+			logger.LogDownload(username, result.Job.Shortcode, "photo", false, result.Error)
+			ui.PrintError("\nError downloading %s: %v\n", result.Job.Shortcode, result.Error)
+			
+			s.logger.ErrorWithFields("Download failed", map[string]interface{}{
+				"username":  username,
+				"shortcode": result.Job.Shortcode,
+				"error":     result.Error.Error(),
+				"duration":  result.Duration,
+			})
+		}
+	}
 }
 
 // downloadPhoto downloads a single photo

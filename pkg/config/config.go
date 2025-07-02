@@ -329,8 +329,14 @@ func (c *Config) MergeCommandLineFlags(flags map[string]interface{}) {
 	if outputDir, ok := flags["output"].(string); ok && outputDir != "" {
 		c.Output.BaseDirectory = outputDir
 	}
-	if concurrent, ok := flags["concurrent"].(int); ok && concurrent > 0 {
+	if concurrent, ok := flags["concurrent-downloads"].(int); ok && concurrent > 0 {
 		c.Download.ConcurrentDownloads = concurrent
+	}
+	if rateLimit, ok := flags["requests-per-minute"].(int); ok && rateLimit > 0 {
+		c.RateLimit.RequestsPerMinute = rateLimit
+	}
+	if notifications, ok := flags["notifications-enabled"].(bool); ok {
+		c.Notifications.Enabled = notifications
 	}
 	if logLevel, ok := flags["log-level"].(string); ok && logLevel != "" {
 		c.Logging.Level = logLevel

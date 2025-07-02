@@ -43,3 +43,15 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Credential files - NEVER commit these!
+credentials.enc
+.passphrase
+*.enc
+.credentials/
+.config/igscraper/credentials*
+.config/igscraper/.passphrase
+
+# Test downloads
+test_downloads/
+downloads/

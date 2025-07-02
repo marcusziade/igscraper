@@ -317,6 +317,12 @@ func (l *zerologLogger) addFieldsFromMap(event *zerolog.Event, fields map[string
 
 // addFieldToEvent adds a single field to a zerolog event with type checking
 func addFieldToEvent(event *zerolog.Event, key string, value interface{}) *zerolog.Event {
+	// Sanitize sensitive fields
+	key = strings.ToLower(key)
+	if isSensitiveField(key) {
+		value = sanitizeValue(value)
+	}
+	
 	switch v := value.(type) {
 	case string:
 		return event.Str(key, v)
@@ -340,6 +346,41 @@ func addFieldToEvent(event *zerolog.Event, key string, value interface{}) *zerol
 		return event.Ints(key, v)
 	default:
 		return event.Interface(key, v)
+	}
+}
+
+// isSensitiveField checks if a field name indicates sensitive data
+func isSensitiveField(key string) bool {
+	sensitivePatterns := []string{
+		"password", "passwd", "pwd",
+		"token", "csrf", "session",
+		"secret", "key", "auth",
+		"credential", "cred",
+		"sessionid", "session_id",
+		"csrftoken", "csrf_token",
+		"api_key", "apikey",
+		"access_token", "refresh_token",
+	}
+	
+	for _, pattern := range sensitivePatterns {
+		if strings.Contains(key, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
+// sanitizeValue masks sensitive values
+func sanitizeValue(value interface{}) interface{} {
+	switch v := value.(type) {
+	case string:
+		if len(v) <= 8 {
+			return "********"
+		}
+		// Show first 4 and last 4 characters
+		return v[:4] + "..." + v[len(v)-4:]
+	default:
+		return "********"
 	}
 }
 

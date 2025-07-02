@@ -1,0 +1,55 @@
+{
+  "data": {
+    "user": {
+      "edge_owner_to_timeline_media": {
+        "page_info": {
+          "has_next_page": true,
+          "end_cursor": "CURSOR_PAGE_2"
+        },
+        "edges": [
+          {
+            "node": {
+              "id": "3456789012345678906",
+              "shortcode": "TEST6pqr",
+              "display_url": "/photos/test_photo6.jpg",
+              "is_video": false
+            }
+          },
+          {
+            "node": {
+              "id": "3456789012345678907",
+              "shortcode": "TEST7stu",
+              "display_url": "/photos/test_photo7.jpg",
+              "is_video": false
+            }
+          },
+          {
+            "node": {
+              "id": "3456789012345678908",
+              "shortcode": "TEST8vwx",
+              "display_url": "/photos/test_photo8.jpg",
+              "is_video": false
+            }
+          },
+          {
+            "node": {
+              "id": "3456789012345678909",
+              "shortcode": "TEST9yza",
+              "display_url": "/photos/test_photo9.jpg",
+              "is_video": false
+            }
+          },
+          {
+            "node": {
+              "id": "3456789012345678910",
+              "shortcode": "TEST10bcd",
+              "display_url": "/photos/test_photo10.jpg",
+              "is_video": false
+            }
+          }
+        ]
+      }
+    }
+  },
+  "status": "ok"
+}

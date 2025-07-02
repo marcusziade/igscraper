@@ -1,0 +1,8 @@
+{
+  "data": {
+    "user": null
+  },
+  "status": "fail",
+  "message": "Login required to view this profile",
+  "requires_to_login": true
+}

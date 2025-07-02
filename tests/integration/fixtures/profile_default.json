@@ -1,0 +1,42 @@
+{
+  "data": {
+    "user": {
+      "id": "123456789",
+      "edge_owner_to_timeline_media": {
+        "count": 150,
+        "page_info": {
+          "has_next_page": true,
+          "end_cursor": "QVFCNmJqZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXoxMjM0NTY3ODkwYWJjZGVmZ2hpag=="
+        },
+        "edges": [
+          {
+            "node": {
+              "id": "2345678901234567890",
+              "shortcode": "ABC123def",
+              "display_url": "/photos/photo1.jpg",
+              "is_video": false
+            }
+          },
+          {
+            "node": {
+              "id": "2345678901234567891",
+              "shortcode": "DEF456ghi",
+              "display_url": "/photos/photo2.jpg",
+              "is_video": false
+            }
+          },
+          {
+            "node": {
+              "id": "2345678901234567892",
+              "shortcode": "GHI789jkl",
+              "display_url": "/photos/photo3.jpg",
+              "is_video": false
+            }
+          }
+        ]
+      }
+    }
+  },
+  "status": "ok",
+  "requires_to_login": false
+}

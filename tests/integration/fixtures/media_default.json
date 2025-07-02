@@ -1,0 +1,39 @@
+{
+  "data": {
+    "user": {
+      "edge_owner_to_timeline_media": {
+        "page_info": {
+          "has_next_page": true,
+          "end_cursor": "NEXT_PAGE_CURSOR"
+        },
+        "edges": [
+          {
+            "node": {
+              "id": "4567890123456789012",
+              "shortcode": "PAGE2abc",
+              "display_url": "/photos/page2_photo1.jpg",
+              "is_video": false
+            }
+          },
+          {
+            "node": {
+              "id": "4567890123456789013",
+              "shortcode": "PAGE2def",
+              "display_url": "/photos/page2_photo2.jpg",
+              "is_video": false
+            }
+          },
+          {
+            "node": {
+              "id": "4567890123456789014",
+              "shortcode": "PAGE2ghi",
+              "display_url": "/photos/page2_photo3.jpg",
+              "is_video": false
+            }
+          }
+        ]
+      }
+    }
+  },
+  "status": "ok"
+}

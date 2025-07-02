@@ -55,3 +55,40 @@ credentials.enc
 # Test downloads
 test_downloads/
 downloads/
+
+# Build artifacts
+dist/
+build/
+bin/
+coverage/
+coverage.txt
+coverage.html
+security-report.json
+
+# Docker
+.dockerignore.local
+
+# Release artifacts
+*.tar.gz
+*.zip
+checksums.txt
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+
+# Pre-commit
+.secrets.baseline
+
+# goreleaser
+.goreleaser.yml.local
+
+# Local development
+docker-compose.override.yml.local
+.env.development
+.env.production
+
+# Checkpoint files
+checkpoint.json
+*.checkpoint

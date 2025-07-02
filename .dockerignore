@@ -1,0 +1,70 @@
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# GitHub files
+.github/
+*.md
+LICENSE
+
+# Development files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Test files
+*_test.go
+testdata/
+coverage/
+*.test
+*.out
+
+# Build artifacts
+dist/
+build/
+bin/
+*.exe
+igscraper
+
+# Downloaded content
+downloads/
+*_photos/
+
+# Configuration files
+.env
+.env.*
+config.yaml
+config.yml
+
+# Documentation
+docs/
+*.md
+
+# CI/CD files
+.travis.yml
+.gitlab-ci.yml
+azure-pipelines.yml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# Docker files (for build context)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Make files
+Makefile
+
+# Go workspace files
+go.work
+go.work.sum

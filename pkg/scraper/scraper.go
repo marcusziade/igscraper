@@ -11,6 +11,7 @@ import (
 
 	"igscraper/pkg/config"
 	"igscraper/pkg/instagram"
+	"igscraper/pkg/logger"
 	"igscraper/pkg/ratelimit"
 	"igscraper/pkg/storage"
 	"igscraper/pkg/ui"
@@ -28,14 +29,18 @@ type Scraper struct {
 	tracker        *ui.StatusTracker
 	notifier       *ui.Notifier
 	config         *config.Config
+	logger         logger.Logger
 }
 
 // New creates a new Scraper instance
 func New(cfg *config.Config) (*Scraper, error) {
+	// Get logger
+	log := logger.GetLogger()
+	
 	// Create Instagram client
-	client := instagram.NewClient(cfg.Download.DownloadTimeout)
+	client := instagram.NewClient(cfg.Download.DownloadTimeout, log)
 	if cfg.Instagram.SessionID != "" {
-		client.SetHeader("sessionid", cfg.Instagram.SessionID)
+		client.SetHeader("Cookie", fmt.Sprintf("sessionid=%s", cfg.Instagram.SessionID))
 	}
 	if cfg.Instagram.CSRFToken != "" {
 		client.SetHeader("x-csrftoken", cfg.Instagram.CSRFToken)
@@ -61,6 +66,7 @@ func New(cfg *config.Config) (*Scraper, error) {
 		tracker:     ui.NewStatusTracker(),
 		notifier:    ui.NewNotifier(),
 		config:      cfg,
+		logger:      logger.GetLogger(),
 	}, nil
 }
 
@@ -76,19 +82,41 @@ func (s *Scraper) getOutputDir(username string) string {
 func (s *Scraper) DownloadUserPhotos(username string) error {
 	ui.PrintHighlight("\n[INITIATING EXTRACTION SEQUENCE]\n")
 	
+	// Log the start of download process
+	s.logger.InfoWithFields("Starting photo download for user", map[string]interface{}{
+		"username": username,
+		"action":   "download_start",
+	})
+	
 	// Setup output directory
 	outputDir := s.getOutputDir(username)
+	s.logger.DebugWithFields("Setting up output directory", map[string]interface{}{
+		"username":   username,
+		"output_dir": outputDir,
+	})
+	
 	storageManager, err := storage.NewManager(outputDir)
 	if err != nil {
+		s.logger.WithError(err).WithField("username", username).Error("Failed to create storage manager")
 		return fmt.Errorf("failed to create storage manager: %w", err)
 	}
 	s.storageManager = storageManager
 	
 	// Get initial user data
+	s.logger.DebugWithFields("Fetching user ID", map[string]interface{}{
+		"username": username,
+	})
+	
 	userID, err := s.getUserID(username)
 	if err != nil {
+		s.logger.WithError(err).WithField("username", username).Error("Failed to get user ID")
 		return fmt.Errorf("failed to get user ID: %w", err)
 	}
+	
+	s.logger.InfoWithFields("Successfully fetched user ID", map[string]interface{}{
+		"username": username,
+		"user_id":  userID,
+	})
 
 	hasMore := true
 	endCursor := ""
@@ -98,48 +126,97 @@ func (s *Scraper) DownloadUserPhotos(username string) error {
 
 		// Rate limit check
 		if !s.rateLimiter.Allow() {
+			logger.LogRateLimit("instagram_api", 3600) // 1 hour in seconds
+			s.logger.WarnWithFields("Rate limit reached, cooling down", map[string]interface{}{
+				"username":      username,
+				"cooldown_time": "1 hour",
+			})
+			
 			s.notifier.SendNotification("RATE LIMIT", "Cooling down for 1 hour...")
 			ui.PrintWarning("\n[COOLING DOWN FOR 1 HOUR]\n")
 			s.rateLimiter.Wait()
+			
+			s.logger.Info("Rate limit cooldown completed, resuming")
 			s.notifier.SendNotification("RESUMING", "Continuing extraction process")
 		}
 
 		// Fetch media batch
+		s.logger.DebugWithFields("Fetching media batch", map[string]interface{}{
+			"username":   username,
+			"user_id":    userID,
+			"end_cursor": endCursor,
+		})
+		
 		media, pageInfo, err := s.fetchMediaBatch(username, userID, endCursor)
 		if err != nil {
+			s.logger.WithError(err).WithFields(map[string]interface{}{
+				"username":   username,
+				"end_cursor": endCursor,
+			}).Error("Error fetching media batch")
+			
 			ui.PrintError("\nError fetching media: %v. Retrying...\n", err)
 			time.Sleep(retryDelay)
 			continue
 		}
+		
+		s.logger.InfoWithFields("Media batch fetched successfully", map[string]interface{}{
+			"username":    username,
+			"media_count": len(media),
+			"has_next":    pageInfo.HasNextPage,
+		})
 
 		// Process media items
 		for _, edge := range media {
 			if edge.Node.IsVideo {
+				s.logger.DebugWithFields("Skipping video", map[string]interface{}{
+					"username":  username,
+					"shortcode": edge.Node.Shortcode,
+					"media_type": "video",
+				})
 				continue
 			}
 
 			if s.storageManager.IsDownloaded(edge.Node.Shortcode) {
+				s.logger.DebugWithFields("Photo already downloaded", map[string]interface{}{
+					"username":  username,
+					"shortcode": edge.Node.Shortcode,
+				})
 				continue
 			}
 
 			err := s.downloadPhoto(edge.Node.DisplayURL, edge.Node.Shortcode)
 			if err != nil {
+				logger.LogDownload(username, edge.Node.Shortcode, "photo", false, err)
 				ui.PrintError("\nError downloading %s: %v\n", edge.Node.Shortcode, err)
 				continue
 			}
 
+			logger.LogDownload(username, edge.Node.Shortcode, "photo", true, nil)
 			s.tracker.IncrementDownloaded()
 			s.tracker.PrintProgress()
 		}
 
-		// Handle pagination
+			// Handle pagination
 		if pageInfo.HasNextPage {
 			endCursor = pageInfo.EndCursor
+			s.logger.DebugWithFields("Moving to next page", map[string]interface{}{
+				"username":    username,
+				"end_cursor":  endCursor,
+			})
 		} else {
 			hasMore = false
+			s.logger.InfoWithFields("No more pages to fetch", map[string]interface{}{
+				"username": username,
+			})
 		}
 	}
 
+	s.logger.InfoWithFields("Photo download completed successfully", map[string]interface{}{
+		"username":        username,
+		"total_downloaded": s.tracker.GetDownloadedCount(),
+		"action":          "download_complete",
+	})
+	
 	ui.PrintSuccess("\n[EXTRACTION COMPLETED SUCCESSFULLY]\n")
 	return nil
 }
@@ -147,8 +224,15 @@ func (s *Scraper) DownloadUserPhotos(username string) error {
 // getUserID fetches the user ID for the given username
 func (s *Scraper) getUserID(username string) (string, error) {
 	endpoint := fmt.Sprintf("https://www.instagram.com/api/v1/users/web_profile_info/?username=%s", username)
+	
+	s.logger.DebugWithFields("Making API request for user ID", map[string]interface{}{
+		"username": username,
+		"endpoint": endpoint,
+	})
+	
 	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {
+		s.logger.WithError(err).Error("Failed to create HTTP request")
 		return "", fmt.Errorf("error creating request: %w", err)
 	}
 	// Set headers from client
@@ -160,28 +244,50 @@ func (s *Scraper) getUserID(username string) (string, error) {
 		req.Header.Set("x-csrftoken", s.config.Instagram.CSRFToken)
 	}
 
+	start := time.Now()
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
+		s.logger.WithError(err).Error("HTTP request failed")
 		return "", fmt.Errorf("error making request: %w", err)
 	}
 	defer resp.Body.Close()
+	
+	duration := time.Since(start).Milliseconds()
+	logger.LogRequest("GET", endpoint, resp.StatusCode, float64(duration))
 
 	if resp.StatusCode != http.StatusOK {
 		if resp.StatusCode == 401 || resp.StatusCode == 403 {
+			s.logger.ErrorWithFields("Authentication error", map[string]interface{}{
+				"username":     username,
+				"status_code":  resp.StatusCode,
+			})
 			return "", fmt.Errorf("authentication required or invalid credentials")
 		}
+		s.logger.ErrorWithFields("Unexpected status code", map[string]interface{}{
+			"username":     username,
+			"status_code":  resp.StatusCode,
+		})
 		return "", fmt.Errorf("received status code: %d", resp.StatusCode)
 	}
 
 	var result instagram.InstagramResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		s.logger.WithError(err).Error("Failed to decode JSON response")
 		return "", fmt.Errorf("error decoding JSON: %w", err)
 	}
 
 	if result.RequiresToLogin {
+		s.logger.WarnWithFields("Profile requires authentication", map[string]interface{}{
+			"username": username,
+		})
 		return "", fmt.Errorf("this profile requires authentication")
 	}
 
+	s.logger.DebugWithFields("Successfully fetched user ID", map[string]interface{}{
+		"username": username,
+		"user_id":  result.Data.User.ID,
+	})
+	
 	return result.Data.User.ID, nil
 }
 
@@ -194,9 +300,17 @@ func (s *Scraper) fetchMediaBatch(username, userID, endCursor string) ([]instagr
 		variables := fmt.Sprintf(`{"id":"%s","first":50,"after":"%s"}`, userID, endCursor)
 		endpoint = fmt.Sprintf("https://www.instagram.com/graphql/query/?query_hash=69cba40317214236af40e7efa697781d&variables=%s", variables)
 	}
+	
+	s.logger.DebugWithFields("Fetching media batch", map[string]interface{}{
+		"username":   username,
+		"user_id":    userID,
+		"end_cursor": endCursor,
+		"endpoint":   endpoint,
+	})
 
 	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {
+		s.logger.WithError(err).Error("Failed to create HTTP request")
 		return nil, instagram.PageInfo{}, fmt.Errorf("error creating request: %w", err)
 	}
 	// Set headers from client
@@ -208,34 +322,78 @@ func (s *Scraper) fetchMediaBatch(username, userID, endCursor string) ([]instagr
 		req.Header.Set("x-csrftoken", s.config.Instagram.CSRFToken)
 	}
 
+	start := time.Now()
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
+		s.logger.WithError(err).Error("HTTP request failed")
 		return nil, instagram.PageInfo{}, fmt.Errorf("error making request: %w", err)
 	}
 	defer resp.Body.Close()
+	
+	duration := time.Since(start).Milliseconds()
+	logger.LogRequest("GET", endpoint, resp.StatusCode, float64(duration))
 
 	if resp.StatusCode != http.StatusOK {
+		s.logger.ErrorWithFields("Unexpected status code", map[string]interface{}{
+			"username":     username,
+			"status_code":  resp.StatusCode,
+		})
 		return nil, instagram.PageInfo{}, fmt.Errorf("received status code: %d", resp.StatusCode)
 	}
 
 	var result instagram.InstagramResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		s.logger.WithError(err).Error("Failed to decode JSON response")
 		return nil, instagram.PageInfo{}, fmt.Errorf("error decoding JSON: %w", err)
 	}
 
 	media := result.Data.User.EdgeOwnerToTimelineMedia
+	
+	s.logger.DebugWithFields("Media batch fetched", map[string]interface{}{
+		"username":      username,
+		"media_count":   len(media.Edges),
+		"has_next_page": media.PageInfo.HasNextPage,
+	})
+	
 	return media.Edges, media.PageInfo, nil
 }
 
 // downloadPhoto downloads a single photo
 func (s *Scraper) downloadPhoto(url, shortcode string) error {
+	s.logger.DebugWithFields("Starting photo download", map[string]interface{}{
+		"shortcode": shortcode,
+		"url":       url,
+	})
+	
+	start := time.Now()
 	data, err := s.client.DownloadPhoto(url)
 	if err != nil {
+		s.logger.WithError(err).WithFields(map[string]interface{}{
+			"shortcode": shortcode,
+			"url":       url,
+		}).Error("Failed to download photo")
 		return fmt.Errorf("failed to download photo: %w", err)
 	}
+	
+	downloadDuration := time.Since(start)
+	s.logger.DebugWithFields("Photo downloaded", map[string]interface{}{
+		"shortcode":    shortcode,
+		"size_bytes":   len(data),
+		"duration_ms":  downloadDuration.Milliseconds(),
+	})
 
 	// SavePhoto expects shortcode, not filename
-	return s.storageManager.SavePhoto(bytes.NewReader(data), shortcode)
+	err = s.storageManager.SavePhoto(bytes.NewReader(data), shortcode)
+	if err != nil {
+		s.logger.WithError(err).WithField("shortcode", shortcode).Error("Failed to save photo")
+		return err
+	}
+	
+	s.logger.DebugWithFields("Photo saved successfully", map[string]interface{}{
+		"shortcode": shortcode,
+	})
+	
+	return nil
 }
 
 // generateFilename generates a filename based on the configured pattern

@@ -80,3 +80,8 @@ func (st *StatusTracker) PrintBatchStatus() {
 func (st *StatusTracker) IsRateLimitReached() bool {
 	return st.CurrentBatch >= MaxPerHour
 }
+
+// GetDownloadedCount returns the total number of downloaded items
+func (st *StatusTracker) GetDownloadedCount() int {
+	return st.TotalDownloaded
+}

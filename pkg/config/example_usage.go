@@ -60,10 +60,17 @@ package config
 // 7. Using configuration in your application:
 //
 //     // Create Instagram client with config
+//     log := logger.GetLogger()
 //     client := instagram.NewClient(
-//         config.Instagram.SessionID,
-//         config.Instagram.CSRFToken,
+//         config.Download.DownloadTimeout,
+//         log,
 //     )
+//     if config.Instagram.SessionID != "" {
+//         client.SetHeader("Cookie", fmt.Sprintf("sessionid=%s", config.Instagram.SessionID))
+//     }
+//     if config.Instagram.CSRFToken != "" {
+//         client.SetHeader("x-csrftoken", config.Instagram.CSRFToken)
+//     }
 //     
 //     // Set up rate limiter
 //     limiter := ratelimit.NewLimiter(

@@ -11,7 +11,9 @@ package instagram
 //   var result instagram.InstagramResponse
 //
 // Or using the client:
-//   client := instagram.NewClient(30 * time.Second)
+//   import "igscraper/pkg/logger"
+//   log := logger.GetLogger()
+//   client := instagram.NewClient(30 * time.Second, log)
 //   result, err := client.FetchUserProfile(username)
 //
 // The main benefits of using the client:

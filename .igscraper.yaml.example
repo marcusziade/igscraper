@@ -1,0 +1,104 @@
+# Example configuration file for Instagram Scraper
+# Copy this file to .igscraper.yaml and update with your values
+
+instagram:
+  # Required: Your Instagram session ID cookie
+  session_id: "YOUR_SESSION_ID_HERE"
+  
+  # Required: Your Instagram CSRF token
+  csrf_token: "YOUR_CSRF_TOKEN_HERE"
+  
+  # Optional: Custom user agent (defaults to Chrome)
+  # user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+  
+  # Optional: API version
+  api_version: "v1"
+
+rate_limit:
+  # Number of requests allowed per minute
+  requests_per_minute: 60
+  
+  # Maximum burst size for rate limiting
+  burst_size: 10
+  
+  # Backoff multiplier for exponential backoff
+  backoff_multiplier: 2.0
+  
+  # Maximum number of retries for failed requests
+  max_retries: 3
+  
+  # Delay between retries (e.g., "5s", "1m", "500ms")
+  retry_delay: "5s"
+
+output:
+  # Base directory for downloaded files
+  base_directory: "./downloads"
+  
+  # Create separate folders for each user
+  create_user_folders: true
+  
+  # File name pattern (supports: {shortcode}, {username}, {timestamp}, {ext})
+  file_name_pattern: "{shortcode}.{ext}"
+  
+  # Overwrite existing files
+  overwrite_existing: false
+
+download:
+  # Number of concurrent downloads
+  concurrent_downloads: 3
+  
+  # Timeout for each download (e.g., "30s", "1m")
+  download_timeout: "30s"
+  
+  # Number of retry attempts for failed downloads
+  retry_attempts: 3
+  
+  # Skip video downloads
+  skip_videos: false
+  
+  # Skip image downloads
+  skip_images: false
+  
+  # Minimum file size in bytes (0 = no limit)
+  min_file_size: 0
+  
+  # Maximum file size in bytes (0 = no limit)
+  max_file_size: 0
+
+notifications:
+  # Enable notifications
+  enabled: true
+  
+  # Notify on completion
+  on_complete: true
+  
+  # Notify on errors
+  on_error: true
+  
+  # Notify on rate limit hits
+  on_rate_limit: true
+  
+  # Progress update interval (number of items)
+  progress_interval: 10
+  
+  # Notification type: "terminal", "desktop", or "none"
+  notification_type: "terminal"
+
+logging:
+  # Log level: "debug", "info", "warn", "error"
+  level: "info"
+  
+  # Log file path (empty = stdout only)
+  file: ""
+  
+  # Maximum log file size in MB
+  max_size: 100
+  
+  # Maximum number of old log files to keep
+  max_backups: 3
+  
+  # Maximum age of log files in days
+  max_age: 7
+  
+  # Compress old log files
+  compress: false

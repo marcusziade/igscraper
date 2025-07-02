@@ -1,5 +1,167 @@
-Example use: `go run cmd/igscraper/main.go zuck`
+# Instagram Photo Scraper - Netrunner Edition
 
-The program will recursively look through all the posts, filter out videos (reels included), and save all the images to a folder named after the IG profile.
+A powerful Instagram photo downloader with cyberpunk aesthetics, built in Go.
 
-Currently the program will stop executing after ~160 images due to rate limits that are not handled in the code. The code needs to be improved to automatically manage rate limits which is 200/hour or something. This would allow the program to be dockerized and hooked up like that.
+## Features
+
+- 🖼️ Downloads all photos from any public Instagram profile
+- 🚀 Concurrent downloads with configurable worker pool
+- 🛡️ Smart rate limiting to avoid Instagram's API restrictions
+- 📁 Automatic duplicate detection and skipping
+- 🔔 Cross-platform desktop notifications
+- 🎨 Cyberpunk-themed terminal UI with progress tracking
+- ⚙️ Flexible configuration via files, environment variables, or CLI flags
+- 🔄 Resume capability for interrupted downloads
+
+## Installation
+
+```bash
+git clone https://github.com/yourusername/igscraper.git
+cd igscraper
+go build -o igscraper cmd/igscraper/main.go
+```
+
+## Configuration
+
+The scraper supports multiple configuration methods (in order of precedence):
+
+1. **Command Line Flags** (highest priority)
+2. **Environment Variables** (including .env files)
+3. **Configuration File** (.igscraper.yaml)
+4. **Default values** (lowest priority)
+
+### Quick Start with .env File
+
+1. Copy the example .env file:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Edit `.env` and add your Instagram credentials:
+   ```env
+   IGSCRAPER_SESSION_ID=your_session_id_here
+   IGSCRAPER_CSRF_TOKEN=your_csrf_token_here
+   ```
+
+3. Run the scraper:
+   ```bash
+   ./igscraper username
+   ```
+
+### Command Line Usage
+
+```bash
+./igscraper [flags] <instagram_username>
+```
+
+Available flags:
+- `--session-id`: Instagram session ID
+- `--csrf-token`: Instagram CSRF token
+- `--output`: Output directory for downloads (default: ./downloads)
+- `--concurrent`: Number of concurrent downloads (default: 3)
+- `--rate-limit`: Requests per minute (default: 60)
+- `--notifications`: Enable desktop notifications (default: true)
+- `--config`: Path to configuration file
+
+Example:
+```bash
+./igscraper --session-id "your_session" --csrf-token "your_token" --output "./photos" zuck
+```
+
+### Configuration File
+
+Create `.igscraper.yaml` in your home directory or project root:
+
+```yaml
+instagram:
+  session_id: "your_session_id"
+  csrf_token: "your_csrf_token"
+  
+rate_limit:
+  requests_per_minute: 60
+  
+download:
+  concurrent_downloads: 3
+  download_timeout: 30s
+  
+output:
+  base_directory: "./downloads"
+  create_user_folders: true
+```
+
+See `.igscraper.yaml.example` for all available options.
+
+## Getting Instagram Credentials
+
+1. Open Instagram in your browser and log in
+2. Open Developer Tools (F12)
+3. Go to Application/Storage → Cookies
+4. Find and copy:
+   - `sessionid` cookie value
+   - `csrftoken` cookie value
+
+## Rate Limiting
+
+The scraper implements intelligent rate limiting:
+- Default: 60 requests per minute (configurable)
+- Automatic cooldown when limits are reached
+- Visual progress tracking
+- Desktop notifications for rate limit events
+
+## Advanced Features
+
+### Concurrent Downloads
+Configure the number of simultaneous downloads:
+```bash
+./igscraper --concurrent 5 username
+```
+
+### Custom Output Directory
+```bash
+./igscraper --output /path/to/photos username
+```
+
+### Disable Notifications
+```bash
+./igscraper --notifications=false username
+```
+
+## Development
+
+### Project Structure
+```
+igscraper/
+├── cmd/igscraper/      # Main application entry point
+├── pkg/
+│   ├── config/         # Configuration management
+│   ├── instagram/      # Instagram API client
+│   ├── scraper/        # Core scraping logic
+│   ├── storage/        # File storage and deduplication
+│   ├── ratelimit/      # Rate limiting algorithms
+│   └── ui/             # Terminal UI components
+```
+
+### Running Tests
+```bash
+go test ./...
+```
+
+### Building for Different Platforms
+```bash
+# Linux
+GOOS=linux GOARCH=amd64 go build -o igscraper-linux cmd/igscraper/main.go
+
+# macOS
+GOOS=darwin GOARCH=amd64 go build -o igscraper-macos cmd/igscraper/main.go
+
+# Windows
+GOOS=windows GOARCH=amd64 go build -o igscraper.exe cmd/igscraper/main.go
+```
+
+## License
+
+MIT License - See LICENSE file for details
+
+## Disclaimer
+
+This tool is for educational purposes only. Please respect Instagram's Terms of Service and use responsibly. The authors are not responsible for any misuse of this tool.

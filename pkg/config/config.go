@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/joho/godotenv"
 	"gopkg.in/yaml.v3"
 )
 
@@ -337,8 +338,13 @@ func (c *Config) MergeCommandLineFlags(flags map[string]interface{}) {
 }
 
 // Load loads configuration from all sources with proper precedence
-// Precedence order: Command line flags > Environment variables > Config file > Defaults
+// Precedence order: Command line flags > Environment variables > .env file > Config file > Defaults
 func Load(configPath string, flags map[string]interface{}) (*Config, error) {
+	// Try to load .env files (don't fail if they don't exist)
+	_ = godotenv.Load(".env")
+	_ = godotenv.Load(filepath.Join(os.Getenv("HOME"), ".env"))
+	_ = godotenv.Load(filepath.Join(os.Getenv("HOME"), ".igscraper.env"))
+	
 	// Start with defaults
 	config := DefaultConfig()
 	
@@ -347,7 +353,7 @@ func Load(configPath string, flags map[string]interface{}) (*Config, error) {
 		return nil, fmt.Errorf("failed to load config file: %w", err)
 	}
 	
-	// Override with environment variables
+	// Override with environment variables (includes values from .env)
 	if err := config.LoadFromEnv(); err != nil {
 		return nil, fmt.Errorf("failed to load environment variables: %w", err)
 	}

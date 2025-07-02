@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"igscraper/internal/downloader"
+	"igscraper/pkg/checkpoint"
 	"igscraper/pkg/config"
 	"igscraper/pkg/instagram"
 	"igscraper/pkg/logger"
@@ -30,6 +31,7 @@ type Scraper struct {
 	notifier       *ui.Notifier
 	config         *config.Config
 	logger         logger.Logger
+	checkpointMgr  *checkpoint.Manager
 }
 
 // New creates a new Scraper instance
@@ -80,12 +82,65 @@ func (s *Scraper) getOutputDir(username string) string {
 
 // DownloadUserPhotos downloads all photos from a user's profile
 func (s *Scraper) DownloadUserPhotos(username string) error {
+	return s.downloadUserPhotosWithOptions(username, false, false)
+}
+
+// DownloadUserPhotosWithResume downloads photos with checkpoint support
+func (s *Scraper) DownloadUserPhotosWithResume(username string, resume bool, forceRestart bool) error {
+	return s.downloadUserPhotosWithOptions(username, resume, forceRestart)
+}
+
+// downloadUserPhotosWithOptions is the internal implementation with checkpoint support
+func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, forceRestart bool) error {
 	ui.PrintHighlight("\n[INITIATING EXTRACTION SEQUENCE]\n")
+	
+	// Initialize checkpoint manager
+	checkpointMgr, err := checkpoint.NewManager(username)
+	if err != nil {
+		s.logger.WithError(err).WithField("username", username).Error("Failed to create checkpoint manager")
+		return fmt.Errorf("failed to create checkpoint manager: %w", err)
+	}
+	s.checkpointMgr = checkpointMgr
+	
+	// Handle checkpoint logic
+	var cp *checkpoint.Checkpoint
+	if forceRestart && checkpointMgr.Exists() {
+		// Force restart: delete existing checkpoint
+		if err := checkpointMgr.Delete(); err != nil {
+			s.logger.WithError(err).Warn("Failed to delete existing checkpoint")
+		}
+		ui.PrintInfo("Force restart", "Ignoring existing checkpoint")
+	} else if resume && checkpointMgr.Exists() {
+		// Resume from checkpoint
+		cp, err = checkpointMgr.Load()
+		if err != nil {
+			s.logger.WithError(err).Error("Failed to load checkpoint")
+			return fmt.Errorf("failed to load checkpoint: %w", err)
+		}
+		if cp != nil {
+			ui.PrintInfo("Resuming from checkpoint", fmt.Sprintf("Downloaded: %d photos", cp.TotalDownloaded))
+			s.logger.InfoWithFields("Resuming from checkpoint", map[string]interface{}{
+				"username":         username,
+				"total_downloaded": cp.TotalDownloaded,
+				"last_cursor":      cp.EndCursor,
+			})
+		}
+	} else if checkpointMgr.Exists() && !resume {
+		// Checkpoint exists but resume not requested
+		info, _ := checkpointMgr.GetCheckpointInfo()
+		if info != nil {
+			ui.PrintWarning("Existing checkpoint found. Use --resume to continue or --force-restart to start over.")
+			ui.PrintInfo("Checkpoint info", fmt.Sprintf("Downloaded: %d photos, Last updated: %v ago", 
+				info["total_downloaded"], info["age"]))
+			return fmt.Errorf("checkpoint exists, use --resume to continue")
+		}
+	}
 	
 	// Log the start of download process
 	s.logger.InfoWithFields("Starting photo download for user", map[string]interface{}{
 		"username": username,
 		"action":   "download_start",
+		"resume":   resume && cp != nil,
 	})
 	
 	// Setup output directory
@@ -121,25 +176,57 @@ func (s *Scraper) DownloadUserPhotos(username string) error {
 		s.processDownloadResults(workerPool.Results(), username)
 	}()
 	
-	// Get initial user data
-	s.logger.DebugWithFields("Fetching user ID", map[string]interface{}{
-		"username": username,
-	})
-	
-	userID, err := s.getUserID(username)
-	if err != nil {
-		s.logger.WithError(err).WithField("username", username).Error("Failed to get user ID")
-		return fmt.Errorf("failed to get user ID: %w", err)
+	// Get initial user data or use from checkpoint
+	var userID string
+	if cp != nil && cp.UserID != "" {
+		userID = cp.UserID
+		s.logger.InfoWithFields("Using user ID from checkpoint", map[string]interface{}{
+			"username": username,
+			"user_id":  userID,
+		})
+	} else {
+		s.logger.DebugWithFields("Fetching user ID", map[string]interface{}{
+			"username": username,
+		})
+		
+		userID, err = s.getUserID(username)
+		if err != nil {
+			s.logger.WithError(err).WithField("username", username).Error("Failed to get user ID")
+			return fmt.Errorf("failed to get user ID: %w", err)
+		}
+		
+		s.logger.InfoWithFields("Successfully fetched user ID", map[string]interface{}{
+			"username": username,
+			"user_id":  userID,
+		})
+		
+		// Create new checkpoint if needed
+		if cp == nil {
+			cp, err = checkpointMgr.Create(username, userID)
+			if err != nil {
+				s.logger.WithError(err).Warn("Failed to create checkpoint")
+				// Continue without checkpoint
+				cp = &checkpoint.Checkpoint{
+					Username:         username,
+					UserID:           userID,
+					DownloadedPhotos: make(map[string]string),
+				}
+			}
+		}
 	}
-	
-	s.logger.InfoWithFields("Successfully fetched user ID", map[string]interface{}{
-		"username": username,
-		"user_id":  userID,
-	})
 
 	hasMore := true
 	endCursor := ""
 	totalQueued := 0
+	pageNum := 0
+	
+	// Resume from checkpoint if available
+	if cp != nil && cp.EndCursor != "" {
+		endCursor = cp.EndCursor
+		totalQueued = cp.TotalQueued
+		pageNum = cp.LastProcessedPage
+		s.tracker.SetDownloadedCount(cp.TotalDownloaded)
+	}
 
 	for hasMore {
 		s.tracker.PrintBatchStatus()
@@ -195,6 +282,15 @@ func (s *Scraper) DownloadUserPhotos(username string) error {
 				})
 				continue
 			}
+			
+			// Skip if already downloaded (from checkpoint)
+			if cp != nil && cp.IsPhotoDownloaded(edge.Node.Shortcode) {
+				s.logger.DebugWithFields("Skipping already downloaded photo", map[string]interface{}{
+					"username":  username,
+					"shortcode": edge.Node.Shortcode,
+				})
+				continue
+			}
 
 			// Submit job to worker pool
 			job := downloader.DownloadJob{
@@ -221,6 +317,15 @@ func (s *Scraper) DownloadUserPhotos(username string) error {
 			})
 		}
 
+		// Update checkpoint after processing batch
+		pageNum++
+		if cp != nil {
+			cp.TotalQueued = totalQueued
+			if err := checkpointMgr.UpdateProgress(cp, endCursor, pageNum); err != nil {
+				s.logger.WithError(err).Warn("Failed to update checkpoint progress")
+			}
+		}
+		
 		// Handle pagination
 		if pageInfo.HasNextPage {
 			endCursor = pageInfo.EndCursor
@@ -251,6 +356,15 @@ func (s *Scraper) DownloadUserPhotos(username string) error {
 		"total_downloaded": s.tracker.GetDownloadedCount(),
 		"action":          "download_complete",
 	})
+	
+	// Delete checkpoint on successful completion
+	if s.checkpointMgr != nil && s.checkpointMgr.Exists() {
+		if err := s.checkpointMgr.Delete(); err != nil {
+			s.logger.WithError(err).Warn("Failed to delete checkpoint")
+		} else {
+			s.logger.Info("Checkpoint deleted after successful completion")
+		}
+	}
 	
 	ui.PrintSuccess("\n[EXTRACTION COMPLETED SUCCESSFULLY]\n")
 	return nil
@@ -332,6 +446,18 @@ func (s *Scraper) processDownloadResults(results <-chan downloader.DownloadResul
 			logger.LogDownload(username, result.Job.Shortcode, "photo", true, nil)
 			s.tracker.IncrementDownloaded()
 			s.tracker.PrintProgress()
+			
+			// Record successful download in checkpoint
+			if s.checkpointMgr != nil {
+				// Load current checkpoint to get latest state
+				cp, err := s.checkpointMgr.Load()
+				if err == nil && cp != nil {
+					filename := fmt.Sprintf("%s.jpg", result.Job.Shortcode)
+					if err := s.checkpointMgr.RecordDownload(cp, result.Job.Shortcode, filename); err != nil {
+						s.logger.WithError(err).Warn("Failed to record download in checkpoint")
+					}
+				}
+			}
 			
 			s.logger.DebugWithFields("Download completed successfully", map[string]interface{}{
 				"username":  username,

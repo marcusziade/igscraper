@@ -85,3 +85,8 @@ func (st *StatusTracker) IsRateLimitReached() bool {
 func (st *StatusTracker) GetDownloadedCount() int {
 	return st.TotalDownloaded
 }
+
+// SetDownloadedCount sets the total downloaded count (used for resuming)
+func (st *StatusTracker) SetDownloadedCount(count int) {
+	st.TotalDownloaded = count
+}

@@ -2,9 +2,7 @@ package scraper
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -39,8 +37,8 @@ func New(cfg *config.Config) (*Scraper, error) {
 	// Get logger
 	log := logger.GetLogger()
 	
-	// Create Instagram client
-	client := instagram.NewClient(cfg.Download.DownloadTimeout, log)
+	// Create Instagram client with retry configuration
+	client := instagram.NewClientWithConfig(cfg.Download.DownloadTimeout, &cfg.Retry, log)
 	if cfg.Instagram.SessionID != "" {
 		client.SetHeader("Cookie", fmt.Sprintf("sessionid=%s", cfg.Instagram.SessionID))
 	}
@@ -267,50 +265,11 @@ func (s *Scraper) getUserID(username string) (string, error) {
 		"endpoint": endpoint,
 	})
 	
-	req, err := http.NewRequest("GET", endpoint, nil)
-	if err != nil {
-		s.logger.WithError(err).Error("Failed to create HTTP request")
-		return "", fmt.Errorf("error creating request: %w", err)
-	}
-	// Set headers from client
-	req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36")
-	if s.config.Instagram.SessionID != "" {
-		req.Header.Set("Cookie", fmt.Sprintf("sessionid=%s", s.config.Instagram.SessionID))
-	}
-	if s.config.Instagram.CSRFToken != "" {
-		req.Header.Set("x-csrftoken", s.config.Instagram.CSRFToken)
-	}
-
-	start := time.Now()
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		s.logger.WithError(err).Error("HTTP request failed")
-		return "", fmt.Errorf("error making request: %w", err)
-	}
-	defer resp.Body.Close()
-	
-	duration := time.Since(start).Milliseconds()
-	logger.LogRequest("GET", endpoint, resp.StatusCode, float64(duration))
-
-	if resp.StatusCode != http.StatusOK {
-		if resp.StatusCode == 401 || resp.StatusCode == 403 {
-			s.logger.ErrorWithFields("Authentication error", map[string]interface{}{
-				"username":     username,
-				"status_code":  resp.StatusCode,
-			})
-			return "", fmt.Errorf("authentication required or invalid credentials")
-		}
-		s.logger.ErrorWithFields("Unexpected status code", map[string]interface{}{
-			"username":     username,
-			"status_code":  resp.StatusCode,
-		})
-		return "", fmt.Errorf("received status code: %d", resp.StatusCode)
-	}
-
 	var result instagram.InstagramResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		s.logger.WithError(err).Error("Failed to decode JSON response")
-		return "", fmt.Errorf("error decoding JSON: %w", err)
+	err := s.client.GetJSON(endpoint, &result)
+	if err != nil {
+		s.logger.WithError(err).WithField("username", username).Error("Failed to get user ID")
+		return "", fmt.Errorf("failed to fetch user profile: %w", err)
 	}
 
 	if result.RequiresToLogin {
@@ -345,43 +304,14 @@ func (s *Scraper) fetchMediaBatch(username, userID, endCursor string) ([]instagr
 		"endpoint":   endpoint,
 	})
 
-	req, err := http.NewRequest("GET", endpoint, nil)
-	if err != nil {
-		s.logger.WithError(err).Error("Failed to create HTTP request")
-		return nil, instagram.PageInfo{}, fmt.Errorf("error creating request: %w", err)
-	}
-	// Set headers from client
-	req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36")
-	if s.config.Instagram.SessionID != "" {
-		req.Header.Set("Cookie", fmt.Sprintf("sessionid=%s", s.config.Instagram.SessionID))
-	}
-	if s.config.Instagram.CSRFToken != "" {
-		req.Header.Set("x-csrftoken", s.config.Instagram.CSRFToken)
-	}
-
-	start := time.Now()
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		s.logger.WithError(err).Error("HTTP request failed")
-		return nil, instagram.PageInfo{}, fmt.Errorf("error making request: %w", err)
-	}
-	defer resp.Body.Close()
-	
-	duration := time.Since(start).Milliseconds()
-	logger.LogRequest("GET", endpoint, resp.StatusCode, float64(duration))
-
-	if resp.StatusCode != http.StatusOK {
-		s.logger.ErrorWithFields("Unexpected status code", map[string]interface{}{
-			"username":     username,
-			"status_code":  resp.StatusCode,
-		})
-		return nil, instagram.PageInfo{}, fmt.Errorf("received status code: %d", resp.StatusCode)
-	}
-
 	var result instagram.InstagramResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		s.logger.WithError(err).Error("Failed to decode JSON response")
-		return nil, instagram.PageInfo{}, fmt.Errorf("error decoding JSON: %w", err)
+	err := s.client.GetJSON(endpoint, &result)
+	if err != nil {
+		s.logger.WithError(err).WithFields(map[string]interface{}{
+			"username":   username,
+			"end_cursor": endCursor,
+		}).Error("Failed to fetch media batch")
+		return nil, instagram.PageInfo{}, fmt.Errorf("failed to fetch media: %w", err)
 	}
 
 	media := result.Data.User.EdgeOwnerToTimelineMedia

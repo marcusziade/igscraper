@@ -1,38 +1,32 @@
 package instagram
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"time"
 
+	"igscraper/pkg/config"
+	"igscraper/pkg/errors"
 	"igscraper/pkg/logger"
+	"igscraper/pkg/retry"
 )
 
-// Error types for Instagram API operations
-type ErrorType string
+// Re-export error types for backward compatibility
+type Error = errors.Error
+type ErrorType = errors.ErrorType
 
 const (
-	ErrorTypeNetwork      ErrorType = "network"
-	ErrorTypeRateLimit    ErrorType = "rate_limit"
-	ErrorTypeAuth         ErrorType = "auth"
-	ErrorTypeParsing      ErrorType = "parsing"
-	ErrorTypeNotFound     ErrorType = "not_found"
-	ErrorTypeServerError  ErrorType = "server_error"
-	ErrorTypeUnknown      ErrorType = "unknown"
+	ErrorTypeNetwork     = errors.ErrorTypeNetwork
+	ErrorTypeRateLimit   = errors.ErrorTypeRateLimit
+	ErrorTypeAuth        = errors.ErrorTypeAuth
+	ErrorTypeParsing     = errors.ErrorTypeParsing
+	ErrorTypeNotFound    = errors.ErrorTypeNotFound
+	ErrorTypeServerError = errors.ErrorTypeServerError
+	ErrorTypeUnknown     = errors.ErrorTypeUnknown
 )
-
-// Error represents an Instagram API error
-type Error struct {
-	Type    ErrorType
-	Message string
-	Code    int
-}
-
-func (e *Error) Error() string {
-	return fmt.Sprintf("instagram %s error (code %d): %s", e.Type, e.Code, e.Message)
-}
 
 // Client represents an Instagram API client
 type Client struct {
@@ -40,6 +34,8 @@ type Client struct {
 	headers    map[string]string
 	baseURL    string
 	logger     logger.Logger
+	retrier    *retry.HTTPRetrier
+	retryConfig *config.RetryConfig
 }
 
 // NewClient creates a new Instagram API client
@@ -67,6 +63,46 @@ func NewClient(timeout time.Duration, log logger.Logger) *Client {
 		},
 		baseURL: BaseURL,
 		logger:  log,
+		retrier: retry.NewHTTPRetrier(3, log), // Default 3 retries
+		retryConfig: nil, // Will be set via SetRetryConfig
+	}
+}
+
+// NewClientWithConfig creates a new Instagram API client with retry configuration
+func NewClientWithConfig(timeout time.Duration, retryConfig *config.RetryConfig, log logger.Logger) *Client {
+	// Use default logger if none provided
+	if log == nil {
+		log = logger.GetLogger()
+	}
+
+	// Create retrier based on config
+	var retrier *retry.HTTPRetrier
+	if retryConfig != nil && retryConfig.Enabled {
+		retrier = retry.NewHTTPRetrier(retryConfig.MaxAttempts, log)
+	} else {
+		retrier = retry.NewHTTPRetrier(0, log) // No retries
+	}
+
+	return &Client{
+		httpClient: &http.Client{
+			Timeout: timeout,
+		},
+		headers: map[string]string{
+			"User-Agent":      "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+			"Accept":          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+			"Accept-Language": "en-US,en;q=0.9",
+			"Accept-Encoding": "gzip, deflate, br",
+			"Cache-Control":   "no-cache",
+			"Pragma":          "no-cache",
+			"Sec-Fetch-Dest":  "document",
+			"Sec-Fetch-Mode":  "navigate",
+			"Sec-Fetch-Site":  "none",
+			"Sec-Fetch-User":  "?1",
+		},
+		baseURL:     BaseURL,
+		logger:      log,
+		retrier:     retrier,
+		retryConfig: retryConfig,
 	}
 }
 
@@ -106,8 +142,8 @@ func (c *Client) doRequest(req *http.Request) (*http.Response, error) {
 			"error":    err.Error(),
 			"duration": duration,
 		})
-		return nil, &Error{
-			Type:    ErrorTypeNetwork,
+		return nil, &errors.Error{
+			Type:    errors.ErrorTypeNetwork,
 			Message: fmt.Sprintf("network error: %v", err),
 			Code:    0,
 		}
@@ -124,72 +160,79 @@ func (c *Client) doRequest(req *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
-// doRequestWithRetry performs an HTTP request with retry logic
-func (c *Client) doRequestWithRetry(req *http.Request, maxRetries int) (*http.Response, error) {
+// doRequestWithRetry performs an HTTP request with retry logic using the retry package
+func (c *Client) doRequestWithRetry(req *http.Request) (*http.Response, error) {
+	if c.retrier == nil || (c.retryConfig != nil && !c.retryConfig.Enabled) {
+		// No retry configured, just do the request
+		return c.doRequest(req)
+	}
+	
+	var resp *http.Response
 	var lastErr error
 	
-	for attempt := 0; attempt <= maxRetries; attempt++ {
-		if attempt > 0 {
-			// Log retry attempt
-			c.logger.WarnWithFields("retrying HTTP request", map[string]interface{}{
-				"method":  req.Method,
-				"url":     req.URL.String(),
-				"attempt": attempt,
-				"error":   lastErr.Error(),
-			})
-			
-			// Wait before retry
-			time.Sleep(time.Second * time.Duration(attempt))
-		}
-		
-		resp, err := c.doRequest(req)
+	err := c.retrier.DoWithErrorType(func() error {
+		var err error
+		resp, err = c.doRequest(req)
 		if err != nil {
 			lastErr = err
-			
-			// Check if it's a network error that's worth retrying
-			if errVal, ok := err.(*Error); ok && errVal.Type == ErrorTypeNetwork {
-				continue
-			}
-			return nil, err
+			return err
 		}
 		
 		// Check if response indicates we should retry
 		if resp.StatusCode >= 500 || resp.StatusCode == http.StatusTooManyRequests {
-			lastErr = &Error{
-				Type:    ErrorTypeServerError,
+			lastErr = &errors.Error{
+				Type:    errors.ErrorTypeServerError,
 				Message: fmt.Sprintf("server returned status %d", resp.StatusCode),
 				Code:    resp.StatusCode,
 			}
+			if resp.StatusCode == http.StatusTooManyRequests {
+				lastErr.(*errors.Error).Type = errors.ErrorTypeRateLimit
+			}
 			resp.Body.Close()
-			continue
+			return lastErr
 		}
 		
-		// Success
-		return resp, nil
-	}
-	
-	c.logger.ErrorWithFields("max retries exceeded", map[string]interface{}{
-		"method":      req.Method,
-		"url":         req.URL.String(),
-		"max_retries": maxRetries,
-		"last_error":  lastErr.Error(),
+		// Check for other errors that shouldn't be retried
+		if resp.StatusCode == 401 || resp.StatusCode == 403 {
+			lastErr = &errors.Error{
+				Type:    errors.ErrorTypeAuth,
+				Message: fmt.Sprintf("authentication error: %d", resp.StatusCode),
+				Code:    resp.StatusCode,
+			}
+			return lastErr
+		}
+		
+		if resp.StatusCode == 404 {
+			lastErr = &errors.Error{
+				Type:    errors.ErrorTypeNotFound,
+				Message: "resource not found",
+				Code:    resp.StatusCode,
+			}
+			return lastErr
+		}
+		
+		return nil
 	})
 	
-	return nil, lastErr
+	if err != nil {
+		return nil, err
+	}
+	
+	return resp, nil
 }
 
 // Get performs a GET request to the specified URL
 func (c *Client) Get(url string) (*http.Response, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return nil, &Error{
-			Type:    ErrorTypeUnknown,
+		return nil, &errors.Error{
+			Type:    errors.ErrorTypeUnknown,
 			Message: fmt.Sprintf("failed to create request: %v", err),
 			Code:    0,
 		}
 	}
 
-	return c.doRequest(req)
+	return c.doRequestWithRetry(req)
 }
 
 // GetJSON performs a GET request and decodes the JSON response
@@ -208,8 +251,8 @@ func (c *Client) GetJSON(url string, target interface{}) error {
 	// Read response body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return &Error{
-			Type:    ErrorTypeNetwork,
+		return &errors.Error{
+			Type:    errors.ErrorTypeNetwork,
 			Message: fmt.Sprintf("failed to read response body: %v", err),
 			Code:    resp.StatusCode,
 		}
@@ -229,8 +272,8 @@ func (c *Client) GetJSON(url string, target interface{}) error {
 			"error":        err.Error(),
 			"body_preview": bodyPreview,
 		})
-		return &Error{
-			Type:    ErrorTypeParsing,
+		return &errors.Error{
+			Type:    errors.ErrorTypeParsing,
 			Message: fmt.Sprintf("failed to parse JSON: %v", err),
 			Code:    resp.StatusCode,
 		}
@@ -249,8 +292,8 @@ func (c *Client) checkResponseStatus(resp *http.Response) error {
 			"status": resp.StatusCode,
 			"url":    resp.Request.URL.String(),
 		})
-		return &Error{
-			Type:    ErrorTypeAuth,
+		return &errors.Error{
+			Type:    errors.ErrorTypeAuth,
 			Message: "authentication required",
 			Code:    resp.StatusCode,
 		}
@@ -259,8 +302,8 @@ func (c *Client) checkResponseStatus(resp *http.Response) error {
 			"status": resp.StatusCode,
 			"url":    resp.Request.URL.String(),
 		})
-		return &Error{
-			Type:    ErrorTypeNotFound,
+		return &errors.Error{
+			Type:    errors.ErrorTypeNotFound,
 			Message: "resource not found",
 			Code:    resp.StatusCode,
 		}
@@ -269,8 +312,8 @@ func (c *Client) checkResponseStatus(resp *http.Response) error {
 			"status": resp.StatusCode,
 			"url":    resp.Request.URL.String(),
 		})
-		return &Error{
-			Type:    ErrorTypeRateLimit,
+		return &errors.Error{
+			Type:    errors.ErrorTypeRateLimit,
 			Message: "rate limit exceeded",
 			Code:    resp.StatusCode,
 		}
@@ -279,8 +322,8 @@ func (c *Client) checkResponseStatus(resp *http.Response) error {
 			"status": resp.StatusCode,
 			"url":    resp.Request.URL.String(),
 		})
-		return &Error{
-			Type:    ErrorTypeServerError,
+		return &errors.Error{
+			Type:    errors.ErrorTypeServerError,
 			Message: "server error",
 			Code:    resp.StatusCode,
 		}
@@ -290,8 +333,8 @@ func (c *Client) checkResponseStatus(resp *http.Response) error {
 				"status": resp.StatusCode,
 				"url":    resp.Request.URL.String(),
 			})
-			return &Error{
-				Type:    ErrorTypeUnknown,
+			return &errors.Error{
+				Type:    errors.ErrorTypeUnknown,
 				Message: fmt.Sprintf("unexpected status code: %d", resp.StatusCode),
 				Code:    resp.StatusCode,
 			}
@@ -323,8 +366,8 @@ func (c *Client) FetchUserProfile(username string) (*InstagramResponse, error) {
 		c.logger.WarnWithFields("authentication required for profile", map[string]interface{}{
 			"username": username,
 		})
-		return nil, &Error{
-			Type:    ErrorTypeAuth,
+		return nil, &errors.Error{
+			Type:    errors.ErrorTypeAuth,
 			Message: "Instagram requires authentication to view this profile",
 			Code:    http.StatusUnauthorized,
 		}
@@ -364,36 +407,91 @@ func (c *Client) FetchUserMedia(userID string, after string) (*InstagramResponse
 	return &response, nil
 }
 
-// DownloadPhoto downloads a photo from the given URL
+// DownloadPhoto downloads a photo from the given URL with retry logic
 func (c *Client) DownloadPhoto(photoURL string) ([]byte, error) {
 	c.logger.DebugWithFields("downloading photo", map[string]interface{}{
 		"url": photoURL,
 	})
 
-	resp, err := c.Get(photoURL)
-	if err != nil {
-		c.logger.ErrorWithFields("failed to download photo", map[string]interface{}{
-			"url":   photoURL,
-			"error": err.Error(),
-		})
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if err := c.checkResponseStatus(resp); err != nil {
-		return nil, err
-	}
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		c.logger.ErrorWithFields("failed to read photo data", map[string]interface{}{
-			"url":   photoURL,
-			"error": err.Error(),
-		})
-		return nil, &Error{
-			Type:    ErrorTypeNetwork,
-			Message: fmt.Sprintf("failed to download photo: %v", err),
-			Code:    0,
+	// Use specific retry config for downloads if available
+	var data []byte
+	var downloadErr error
+	
+	if c.retryConfig != nil && c.retryConfig.Enabled {
+		// Create custom retry config for downloads
+		retryConfig := &retry.Config{
+			MaxAttempts: c.retryConfig.NetworkRetries,
+			Backoff: &retry.ExponentialBackoff{
+				BaseDelay:    c.retryConfig.NetworkBaseDelay,
+				MaxDelay:     c.retryConfig.MaxDelay,
+				Multiplier:   c.retryConfig.Multiplier,
+				JitterFactor: c.retryConfig.JitterFactor,
+			},
+			RetryIf: retry.DefaultRetryIf,
+			Context: context.Background(),
+			Logger:  c.logger,
+		}
+		
+		err := retry.Do(func() error {
+			resp, err := c.Get(photoURL)
+			if err != nil {
+				downloadErr = err
+				return err
+			}
+			defer resp.Body.Close()
+			
+			if err := c.checkResponseStatus(resp); err != nil {
+				downloadErr = err
+				return err
+			}
+			
+			data, err = io.ReadAll(resp.Body)
+			if err != nil {
+				downloadErr = &errors.Error{
+					Type:    errors.ErrorTypeNetwork,
+					Message: fmt.Sprintf("failed to read photo data: %v", err),
+					Code:    0,
+				}
+				return downloadErr
+			}
+			
+			return nil
+		}, retryConfig)
+		
+		if err != nil {
+			c.logger.ErrorWithFields("failed to download photo after retries", map[string]interface{}{
+				"url":   photoURL,
+				"error": err.Error(),
+			})
+			return nil, err
+		}
+	} else {
+		// No retry, just download once
+		resp, err := c.Get(photoURL)
+		if err != nil {
+			c.logger.ErrorWithFields("failed to download photo", map[string]interface{}{
+				"url":   photoURL,
+				"error": err.Error(),
+			})
+			return nil, err
+		}
+		defer resp.Body.Close()
+		
+		if err := c.checkResponseStatus(resp); err != nil {
+			return nil, err
+		}
+		
+		data, err = io.ReadAll(resp.Body)
+		if err != nil {
+			c.logger.ErrorWithFields("failed to read photo data", map[string]interface{}{
+				"url":   photoURL,
+				"error": err.Error(),
+			})
+			return nil, &errors.Error{
+				Type:    errors.ErrorTypeNetwork,
+				Message: fmt.Sprintf("failed to download photo: %v", err),
+				Code:    0,
+			}
 		}
 	}
 

@@ -20,6 +20,9 @@ type Config struct {
 	// Rate limiting configuration
 	RateLimit RateLimitConfig `yaml:"rate_limit" json:"rate_limit"`
 	
+	// Retry configuration
+	Retry RetryConfig `yaml:"retry" json:"retry"`
+	
 	// Output settings
 	Output OutputConfig `yaml:"output" json:"output"`
 	
@@ -48,6 +51,29 @@ type RateLimitConfig struct {
 	BackoffMultiplier float64       `yaml:"backoff_multiplier" json:"backoff_multiplier"`
 	MaxRetries        int           `yaml:"max_retries" json:"max_retries"`
 	RetryDelay        time.Duration `yaml:"retry_delay" json:"retry_delay"`
+}
+
+// RetryConfig holds retry and backoff configuration
+type RetryConfig struct {
+	// General retry settings
+	MaxAttempts int  `yaml:"max_attempts" json:"max_attempts"`
+	Enabled     bool `yaml:"enabled" json:"enabled"`
+	
+	// Exponential backoff settings
+	BaseDelay    time.Duration `yaml:"base_delay" json:"base_delay"`
+	MaxDelay     time.Duration `yaml:"max_delay" json:"max_delay"`
+	Multiplier   float64       `yaml:"multiplier" json:"multiplier"`
+	JitterFactor float64       `yaml:"jitter_factor" json:"jitter_factor"`
+	
+	// Error-type specific settings
+	NetworkRetries   int           `yaml:"network_retries" json:"network_retries"`
+	NetworkBaseDelay time.Duration `yaml:"network_base_delay" json:"network_base_delay"`
+	
+	RateLimitRetries   int           `yaml:"rate_limit_retries" json:"rate_limit_retries"`
+	RateLimitBaseDelay time.Duration `yaml:"rate_limit_base_delay" json:"rate_limit_base_delay"`
+	
+	ServerErrorRetries   int           `yaml:"server_error_retries" json:"server_error_retries"`
+	ServerErrorBaseDelay time.Duration `yaml:"server_error_base_delay" json:"server_error_base_delay"`
 }
 
 // OutputConfig holds output directory configuration
@@ -102,6 +128,20 @@ func DefaultConfig() *Config {
 			BackoffMultiplier: 2.0,
 			MaxRetries:        3,
 			RetryDelay:        5 * time.Second,
+		},
+		Retry: RetryConfig{
+			Enabled:              true,
+			MaxAttempts:          3,
+			BaseDelay:            1 * time.Second,
+			MaxDelay:             60 * time.Second,
+			Multiplier:           2.0,
+			JitterFactor:         0.1,
+			NetworkRetries:       5,
+			NetworkBaseDelay:     1 * time.Second,
+			RateLimitRetries:     3,
+			RateLimitBaseDelay:   30 * time.Second,
+			ServerErrorRetries:   3,
+			ServerErrorBaseDelay: 5 * time.Second,
 		},
 		Output: OutputConfig{
 			BaseDirectory:     "./downloads",

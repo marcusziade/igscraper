@@ -1,0 +1,62 @@
+# Example configuration file with retry settings
+instagram:
+  session_id: "your_session_id_here"
+  csrf_token: "your_csrf_token_here"
+  user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+
+rate_limit:
+  requests_per_minute: 60
+  burst_size: 10
+  backoff_multiplier: 2.0
+  max_retries: 3
+  retry_delay: 5s
+
+# Retry configuration for handling transient failures
+retry:
+  enabled: true
+  max_attempts: 3
+  
+  # General exponential backoff settings
+  base_delay: 1s
+  max_delay: 60s
+  multiplier: 2.0
+  jitter_factor: 0.1
+  
+  # Error-type specific retry settings
+  network_retries: 5          # More retries for network errors
+  network_base_delay: 1s      # Start with 1 second delay
+  
+  rate_limit_retries: 3       # Fewer retries for rate limits
+  rate_limit_base_delay: 30s  # Start with 30 second delay (Instagram rate limits)
+  
+  server_error_retries: 3     # Moderate retries for server errors
+  server_error_base_delay: 5s # Start with 5 second delay
+
+output:
+  base_directory: "./downloads"
+  create_user_folders: true
+  file_name_pattern: "{shortcode}.jpg"
+  overwrite_existing: false
+
+download:
+  concurrent_downloads: 3
+  download_timeout: 30s
+  retry_attempts: 3  # Legacy setting, use retry.network_retries instead
+  skip_videos: false
+  skip_images: false
+
+notifications:
+  enabled: true
+  on_complete: true
+  on_error: true
+  on_rate_limit: true
+  progress_interval: 10
+  notification_type: "terminal"
+
+logging:
+  level: "info"
+  file: ""
+  max_size: 100
+  max_backups: 3
+  max_age: 7
+  compress: false

@@ -53,8 +53,15 @@ func TestClientLogging(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Create client with test server URL
-	client := NewClient(5*time.Second, log)
+	// Create client with test server URL and short retry delays for testing
+	retryConfig := &config.RetryConfig{
+		Enabled:     true,
+		MaxAttempts: 2,
+		BaseDelay:   10 * time.Millisecond,
+		MaxDelay:    50 * time.Millisecond,
+		Multiplier:  1.5,
+	}
+	client := NewClientWithConfig(5*time.Second, retryConfig, log)
 	client.baseURL = server.URL
 
 	t.Run("Successful Request", func(t *testing.T) {
@@ -68,13 +75,18 @@ func TestClientLogging(t *testing.T) {
 	})
 
 	t.Run("Rate Limit Error", func(t *testing.T) {
-		resp, err := client.Get(server.URL + "/api/v1/users/123/media/")
+		// Create a client without retries for this test
+		noRetryClient := NewClient(5*time.Second, log)
+		noRetryClient.baseURL = server.URL
+		noRetryClient.retrier = nil
+		
+		resp, err := noRetryClient.Get(server.URL + "/api/v1/users/123/media/")
 		if err != nil {
 			t.Errorf("Expected no error from Get, got: %v", err)
 		}
 		if resp != nil {
 			defer resp.Body.Close()
-			err = client.checkResponseStatus(resp)
+			err = noRetryClient.checkResponseStatus(resp)
 			if err == nil {
 				t.Error("Expected rate limit error")
 			}
@@ -82,13 +94,18 @@ func TestClientLogging(t *testing.T) {
 	})
 
 	t.Run("Server Error", func(t *testing.T) {
-		resp, err := client.Get(server.URL + "/api/v1/error/")
+		// Create a client without retries for this test
+		noRetryClient := NewClient(5*time.Second, log)
+		noRetryClient.baseURL = server.URL
+		noRetryClient.retrier = nil
+		
+		resp, err := noRetryClient.Get(server.URL + "/api/v1/error/")
 		if err != nil {
 			t.Errorf("Expected no error from Get, got: %v", err)
 		}
 		if resp != nil {
 			defer resp.Body.Close()
-			err = client.checkResponseStatus(resp)
+			err = noRetryClient.checkResponseStatus(resp)
 			if err == nil {
 				t.Error("Expected server error")
 			}
@@ -97,29 +114,23 @@ func TestClientLogging(t *testing.T) {
 
 	t.Run("Auth Error", func(t *testing.T) {
 		resp, err := client.Get(server.URL + "/api/v1/auth/")
-		if err != nil {
-			t.Errorf("Expected no error from Get, got: %v", err)
+		// Auth errors are not retried, so we expect an error from Get
+		if err == nil {
+			t.Error("Expected auth error from Get")
 		}
 		if resp != nil {
-			defer resp.Body.Close()
-			err = client.checkResponseStatus(resp)
-			if err == nil {
-				t.Error("Expected auth error")
-			}
+			resp.Body.Close()
 		}
 	})
 
 	t.Run("Not Found Error", func(t *testing.T) {
 		resp, err := client.Get(server.URL + "/api/v1/notfound/")
-		if err != nil {
-			t.Errorf("Expected no error from Get, got: %v", err)
+		// Not found errors are not retried, so we expect an error from Get
+		if err == nil {
+			t.Error("Expected not found error from Get")
 		}
 		if resp != nil {
-			defer resp.Body.Close()
-			err = client.checkResponseStatus(resp)
-			if err == nil {
-				t.Error("Expected not found error")
-			}
+			resp.Body.Close()
 		}
 	})
 
@@ -143,7 +154,7 @@ func TestClientLogging(t *testing.T) {
 	t.Run("Retry Logic", func(t *testing.T) {
 		// Create a request that will trigger retry
 		req, _ := http.NewRequest("GET", server.URL+"/api/v1/error/", nil)
-		resp, err := client.doRequestWithRetry(req, 2)
+		resp, err := client.doRequestWithRetry(req)
 		if err == nil {
 			t.Error("Expected error after retries")
 		}

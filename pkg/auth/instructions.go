@@ -87,5 +87,5 @@ func ShowCookieExtractionGuide() {
 func ShowQuickExtractGuide() {
 	fmt.Println("\n🍪 Quick Guide: F12 → Network tab → Refresh → Click any instagram.com request → Headers → Cookie")
 	fmt.Println("   Need: sessionid=... and csrftoken=...")
-	fmt.Println("   Type 'help' for detailed instructions\n")
+	fmt.Println("   Type 'help' for detailed instructions")
 }

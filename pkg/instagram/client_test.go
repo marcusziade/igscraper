@@ -43,6 +43,35 @@ func newResponse(statusCode int, body string) *http.Response {
 	}
 }
 
+// Helper function to create a mock client with predefined responses
+func newTestClient(log logger.Logger, responses map[string]interface{}) *Client {
+	mockHTTPClient := newMockHTTPClient(func(req *http.Request) (*http.Response, error) {
+		if response, exists := responses[req.URL.String()]; exists {
+			switch v := response.(type) {
+			case error:
+				return nil, v
+			case int:
+				// Just status code
+				return newResponse(v, ""), nil
+			default:
+				// Assume it's a struct to be JSON encoded
+				responseBody, _ := json.Marshal(v)
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(bytes.NewReader(responseBody)),
+					Header:     make(http.Header),
+				}, nil
+			}
+		}
+		// Default to 404 for unmatched URLs
+		return newResponse(http.StatusNotFound, ""), nil
+	})
+	
+	client := NewClient(30*time.Second, log)
+	client.httpClient = mockHTTPClient
+	return client
+}
+
 func TestNewClient(t *testing.T) {
 	log := logger.NewTestLogger()
 	client := NewClient(30*time.Second, log)
@@ -311,7 +340,6 @@ func TestGetJSON(t *testing.T) {
 
 func TestFetchUserProfile(t *testing.T) {
 	log := logger.NewTestLogger()
-	client := NewClient(30*time.Second, log)
 	
 	t.Run("successful profile fetch", func(t *testing.T) {
 		expectedResponse := &InstagramResponse{
@@ -323,20 +351,10 @@ func TestFetchUserProfile(t *testing.T) {
 			},
 		}
 		
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Check path and query
-			if r.URL.Path == ProfileEndpoint && r.URL.Query().Get("username") == "testuser" {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusOK)
-				json.NewEncoder(w).Encode(expectedResponse)
-			} else {
-				w.WriteHeader(http.StatusBadRequest)
-			}
-		}))
-		defer server.Close()
-		
-		// Override base URL for testing
-		client.baseURL = server.URL
+		// Create client with mocked responses
+		client := newTestClient(log, map[string]interface{}{
+			GetProfileURL("testuser"): expectedResponse,
+		})
 		
 		result, err := client.FetchUserProfile("testuser")
 		require.NoError(t, err)
@@ -348,18 +366,23 @@ func TestFetchUserProfile(t *testing.T) {
 			RequiresToLogin: true,
 		}
 		
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path == ProfileEndpoint {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusOK)
-				json.NewEncoder(w).Encode(response)
-			} else {
-				w.WriteHeader(http.StatusBadRequest)
+		// Create a mock HTTP client
+		mockClient := newMockHTTPClient(func(req *http.Request) (*http.Response, error) {
+			expectedURL := GetProfileURL("privateuser")
+			if req.URL.String() == expectedURL {
+				responseBody, _ := json.Marshal(response)
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(bytes.NewReader(responseBody)),
+					Header:     make(http.Header),
+				}, nil
 			}
-		}))
-		defer server.Close()
+			return newResponse(http.StatusBadRequest, ""), nil
+		})
 		
-		client.baseURL = server.URL
+		// Create client with mock HTTP client
+		client := NewClient(30*time.Second, log)
+		client.httpClient = mockClient
 		
 		result, err := client.FetchUserProfile("privateuser")
 		assert.Nil(t, result)
@@ -373,7 +396,6 @@ func TestFetchUserProfile(t *testing.T) {
 
 func TestFetchUserMedia(t *testing.T) {
 	log := logger.NewTestLogger()
-	client := NewClient(30*time.Second, log)
 	
 	t.Run("successful media fetch", func(t *testing.T) {
 		expectedResponse := &InstagramResponse{
@@ -400,18 +422,23 @@ func TestFetchUserMedia(t *testing.T) {
 			},
 		}
 		
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path == MediaEndpoint && r.URL.Query().Get("query_hash") == MediaQueryHash {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusOK)
-				json.NewEncoder(w).Encode(expectedResponse)
-			} else {
-				w.WriteHeader(http.StatusBadRequest)
+		// Create a mock HTTP client
+		mockClient := newMockHTTPClient(func(req *http.Request) (*http.Response, error) {
+			expectedURL := GetMediaURL("123456", "")
+			if req.URL.String() == expectedURL {
+				responseBody, _ := json.Marshal(expectedResponse)
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(bytes.NewReader(responseBody)),
+					Header:     make(http.Header),
+				}, nil
 			}
-		}))
-		defer server.Close()
+			return newResponse(http.StatusBadRequest, ""), nil
+		})
 		
-		client.baseURL = server.URL
+		// Create client with mock HTTP client
+		client := NewClient(30*time.Second, log)
+		client.httpClient = mockClient
 		
 		result, err := client.FetchUserMedia("123456", "")
 		require.NoError(t, err)

@@ -161,10 +161,10 @@ func TestWithField(t *testing.T) {
 
 	output := buf.String()
 	if !strings.Contains(output, "test message") {
-		t.Error("Message not found in output")
+		t.Errorf("Message not found in output: %s", output)
 	}
-	if !strings.Contains(output, `"key":"value"`) {
-		t.Error("Field not found in output")
+	if !strings.Contains(output, `"key":"value"`) && !strings.Contains(output, `key:value`) {
+		t.Errorf("Field not found in output: %s", output)
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"igscraper/pkg/instagram"
 	"igscraper/pkg/ratelimit"
 )
 
@@ -60,6 +61,11 @@ func (m *MockStorageManager) SavePhoto(r io.Reader, shortcode string) error {
 	defer m.mu.Unlock()
 	m.savedPhotos[shortcode] = true
 	return nil
+}
+
+func (m *MockStorageManager) SavePhotoWithMetadata(r io.Reader, shortcode string, node *instagram.Node) error {
+	// For testing, just call SavePhoto since we don't need to test metadata saving
+	return m.SavePhoto(r, shortcode)
 }
 
 func (m *MockStorageManager) GetSavedCount() int {

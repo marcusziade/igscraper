@@ -24,7 +24,7 @@ const (
 
 // Scraper orchestrates the Instagram photo download process
 type Scraper struct {
-	client         *instagram.Client
+	client         InstagramClient
 	storageManager *storage.Manager
 	rateLimiter    ratelimit.Limiter
 	tracker        *ui.StatusTracker

@@ -10,8 +10,8 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-# Default port
-PORT=${1:-8080}
+# Default port (8888 is less commonly used than 8080)
+PORT=${1:-8888}
 
 # Function to kill existing process on port
 kill_port() {

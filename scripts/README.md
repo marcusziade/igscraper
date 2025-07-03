@@ -9,7 +9,7 @@ This directory contains utility scripts for the IGScraper project.
 Preview the documentation site locally using Python's built-in HTTP server.
 
 ```bash
-# Run with default port (8080)
+# Run with default port (8888)
 ./scripts/preview-docs.sh
 
 # Run with custom port

@@ -161,7 +161,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.2rem 20px;
+  padding: 0.875rem 20px;
 }
 
 .nav-brand {
@@ -213,18 +213,16 @@ body {
 
 /* Hero Section */
 .hero {
-  padding: 3rem 0 2rem;
+  padding: 2rem 0 1.5rem;
   background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
-  min-height: calc(100vh - 80px);
-  display: flex;
-  align-items: center;
+  position: relative;
 }
 
 .hero-grid {
   display: grid;
   grid-template-columns: 1fr 1.2fr;
-  gap: 3rem;
-  align-items: center;
+  gap: 2rem;
+  align-items: start;
 }
 
 .hero-content {
@@ -232,10 +230,10 @@ body {
 }
 
 .hero-title {
-  font-size: clamp(2rem, 4vw, 3rem);
+  font-size: clamp(1.75rem, 3.5vw, 2.5rem);
   font-weight: 700;
-  margin-bottom: 0.75rem;
-  line-height: 1.2;
+  margin-bottom: 0.5rem;
+  line-height: 1.1;
 }
 
 .text-gradient {
@@ -247,28 +245,29 @@ body {
 
 .subtitle {
   display: block;
-  font-size: 1.25rem;
+  font-size: 1.125rem;
   font-weight: 400;
   color: var(--text-secondary);
   margin-top: 0.25rem;
 }
 
 .hero-description {
-  font-size: 1.125rem;
+  font-size: 1rem;
   color: var(--text-secondary);
-  margin-bottom: 1.5rem;
-  max-width: 500px;
+  margin-bottom: 1rem;
+  max-width: 450px;
+  line-height: 1.5;
 }
 
 .hero-actions {
   display: flex;
   gap: 1rem;
-  margin-top: 1.5rem;
+  margin-top: 1rem;
 }
 
 /* Buttons */
 .btn {
-  padding: 0.75rem 2rem;
+  padding: 0.625rem 1.5rem;
   border-radius: 8px;
   font-weight: 600;
   text-decoration: none;
@@ -276,7 +275,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 1rem;
+  font-size: 0.9rem;
   border: 2px solid transparent;
 }
 
@@ -305,67 +304,99 @@ body {
 /* Terminal */
 /* Quick Start */
 .quick-start {
-  margin: 1.5rem 0;
-  padding: 1.5rem;
+  margin: 1rem 0;
+  padding: 1rem;
   background: var(--bg-secondary);
-  border-radius: 12px;
+  border-radius: 10px;
   border: 1px solid var(--border-color);
 }
 
 .quick-start h3 {
-  font-size: 1rem;
-  margin-bottom: 0.75rem;
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
   color: var(--accent-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 /* Hero Demo */
 .hero-demo {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1rem;
 }
 
 .terminal-window {
   background: var(--terminal-bg);
-  border-radius: 12px;
+  border-radius: 10px;
   overflow: hidden;
-  box-shadow: 0 20px 40px -10px var(--shadow-color);
+  box-shadow: 0 15px 30px -8px var(--shadow-color);
   width: 100%;
 }
 
 /* Hero Stats */
 .hero-stats {
   display: flex;
-  gap: 2rem;
+  gap: 1.5rem;
   justify-content: center;
-  padding: 1rem;
+  padding: 0.75rem;
+  background: var(--bg-secondary);
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
 }
 
 .stat-item {
   text-align: center;
+  flex: 1;
 }
 
 .stat-number {
   display: block;
-  font-size: 2rem;
+  font-size: 1.5rem;
   font-weight: 700;
   background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  line-height: 1;
 }
 
 .stat-text {
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   color: var(--text-secondary);
+  margin-top: 0.25rem;
+}
+
+/* Scroll Indicator */
+.scroll-indicator {
+  position: absolute;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  animation: bounce 2s infinite;
+  color: var(--text-tertiary);
+  opacity: 0.6;
+  cursor: pointer;
+}
+
+@keyframes bounce {
+  0%, 20%, 50%, 80%, 100% {
+    transform: translateX(-50%) translateY(0);
+  }
+  40% {
+    transform: translateX(-50%) translateY(-10px);
+  }
+  60% {
+    transform: translateX(-50%) translateY(-5px);
+  }
 }
 
 .terminal-header {
   background: var(--bg-tertiary);
-  padding: 0.75rem 1rem;
+  padding: 0.5rem 0.75rem;
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.75rem;
   border-bottom: 1px solid var(--border-color);
 }
 
@@ -392,10 +423,10 @@ body {
 }
 
 .terminal-body {
-  padding: 1.25rem;
+  padding: 1rem;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 0.8rem;
-  line-height: 1.5;
+  font-size: 0.75rem;
+  line-height: 1.4;
 }
 
 .terminal-body .accent {
@@ -435,25 +466,25 @@ body {
 
 /* Features Section */
 .features {
-  padding: 3rem 0;
+  padding: 2rem 0;
   background: var(--bg-secondary);
 }
 
 .features-header {
   text-align: center;
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
 }
 
 .section-subtitle {
-  font-size: 1.125rem;
+  font-size: 1rem;
   color: var(--text-secondary);
-  margin-top: 0.5rem;
+  margin-top: 0.25rem;
 }
 
 .section-title {
   text-align: center;
-  font-size: 2rem;
-  margin-bottom: 0.5rem;
+  font-size: 1.75rem;
+  margin-bottom: 0.25rem;
   background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -470,12 +501,12 @@ body {
 
 .feature-card.compact {
   background: var(--bg-primary);
-  padding: 1.25rem;
-  border-radius: 10px;
+  padding: 1rem;
+  border-radius: 8px;
   border: 1px solid var(--border-color);
   transition: all 0.3s ease;
   display: flex;
-  gap: 1rem;
+  gap: 0.75rem;
   align-items: flex-start;
 }
 
@@ -486,14 +517,15 @@ body {
 }
 
 .feature-card.compact .feature-icon {
-  font-size: 2rem;
+  font-size: 1.5rem;
   margin: 0;
   flex-shrink: 0;
+  line-height: 1;
 }
 
 .feature-card.compact h3 {
-  font-size: 1.125rem;
-  margin-bottom: 0.25rem;
+  font-size: 1rem;
+  margin-bottom: 0.125rem;
   color: var(--text-primary);
 }
 
@@ -505,22 +537,22 @@ body {
 
 /* Usage Section */
 .usage-section {
-  padding: 3rem 0;
+  padding: 2rem 0;
   background: var(--bg-primary);
 }
 
 .usage-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 2rem;
-  margin-top: 2rem;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
 }
 
 .usage-card {
   position: relative;
-  padding: 1.5rem;
+  padding: 1.25rem;
   background: var(--bg-secondary);
-  border-radius: 12px;
+  border-radius: 10px;
   border: 1px solid var(--border-color);
 }
 
@@ -541,15 +573,16 @@ body {
 }
 
 .usage-card h3 {
-  font-size: 1.125rem;
-  margin-bottom: 0.5rem;
+  font-size: 1rem;
+  margin-bottom: 0.375rem;
   color: var(--text-primary);
 }
 
 .usage-card p {
-  font-size: 0.875rem;
+  font-size: 0.8rem;
   color: var(--text-secondary);
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
+  line-height: 1.4;
 }
 
 .installation-content, .usage-examples {
@@ -579,8 +612,8 @@ body {
 }
 
 .code-block.compact {
-  padding: 0.75rem;
-  font-size: 0.8rem;
+  padding: 0.625rem;
+  font-size: 0.75rem;
 }
 
 .code-block.mini {
@@ -625,14 +658,14 @@ body {
 
 /* Install & Config Section */
 .install-config {
-  padding: 3rem 0;
+  padding: 2rem 0;
   background: var(--bg-secondary);
 }
 
 .install-grid {
   display: grid;
   grid-template-columns: 1.2fr 1fr;
-  gap: 3rem;
+  gap: 2rem;
 }
 
 .install-section h2, .config-section h2 {

@@ -37,6 +37,17 @@ open_browser() {
     fi
 }
 
+# Function to get local IP address
+get_local_ip() {
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        ip addr show | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | grep -v '127.0.0.1' | head -n1
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+        ifconfig | grep "inet " | grep -v 127.0.0.1 | awk '{print $2}' | head -n1
+    else
+        echo "localhost"
+    fi
+}
+
 # Main script
 echo -e "${GREEN}Starting IGScraper documentation preview...${NC}"
 
@@ -63,8 +74,13 @@ fi
 # Kill any existing process on the port
 kill_port
 
+# Get local IP address
+LOCAL_IP=$(get_local_ip)
+
 # Start the server
-echo -e "${YELLOW}Starting local server on http://localhost:$PORT${NC}"
+echo -e "${YELLOW}Starting server accessible on your network${NC}"
+echo -e "${GREEN}Local access:   http://localhost:$PORT${NC}"
+echo -e "${GREEN}Network access: http://$LOCAL_IP:$PORT${NC}"
 echo -e "${YELLOW}Press Ctrl+C to stop the server${NC}"
 echo ""
 
@@ -77,11 +93,11 @@ sleep 0.5  # 500ms delay before starting
 # Try to open browser after a short delay
 (sleep 2 && open_browser "http://localhost:$PORT") &
 
-# Start Python HTTP server
+# Start Python HTTP server bound to all interfaces (0.0.0.0)
 if $PYTHON_CMD -c "import sys; sys.exit(0 if sys.version_info[0] >= 3 else 1)" 2>/dev/null; then
-    # Python 3
-    $PYTHON_CMD -m http.server $PORT
+    # Python 3 - bind to all interfaces
+    $PYTHON_CMD -m http.server $PORT --bind 0.0.0.0
 else
-    # Python 2
+    # Python 2 - already binds to all interfaces by default
     $PYTHON_CMD -m SimpleHTTPServer $PORT
 fi

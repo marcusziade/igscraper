@@ -96,7 +96,8 @@ dockers:
       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
       - "--label=org.opencontainers.image.version={{.Version}}"
       - "--label=org.opencontainers.image.source={{.GitURL}}"
-      - "--platform=linux/amd64,linux/arm64,linux/arm/v7"
+      - "--push"
+      - "--platform=linux/amd64,linux/arm64"
 
 nfpms:
   - id: packages

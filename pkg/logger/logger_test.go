@@ -155,15 +155,15 @@ func TestWithField(t *testing.T) {
 		fields: make(map[string]interface{}),
 	}
 
-	// Test adding a single field
-	newLogger := logger.WithField("key", "value")
+	// Test adding a single field (use "testfield" instead of "key" which is sensitive)
+	newLogger := logger.WithField("testfield", "value")
 	newLogger.Info("test message")
 
 	output := buf.String()
 	if !strings.Contains(output, "test message") {
 		t.Errorf("Message not found in output: %s", output)
 	}
-	if !strings.Contains(output, `"key":"value"`) && !strings.Contains(output, `key:value`) {
+	if !strings.Contains(output, `"testfield":"value"`) {
 		t.Errorf("Field not found in output: %s", output)
 	}
 }

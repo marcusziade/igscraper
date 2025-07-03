@@ -83,7 +83,7 @@ igscraper username</code></pre>
                 </div>
                 
                 <div class="hero-demo">
-                    <div class="terminal-window">
+                    <div class="terminal-window" title="Hover to pause animation">
                         <div class="terminal-header">
                             <div class="terminal-buttons">
                                 <span class="terminal-button red"></span>
@@ -93,15 +93,27 @@ igscraper username</code></pre>
                             <span class="terminal-title">igscraper --tui</span>
                         </div>
                         <div class="terminal-body">
-                            <pre><code><span class="output">┌─ IGScraper v1.0.0 ─────────────────────┐
-│ <span class="accent">@zuck</span> • 523 photos                      │
-│                                         │
-│ <span class="progress-bar">████████████████░░░░</span> 80% │
-│                                         │
-│ <span class="stat">📊 412/523</span> downloaded                  │
-│ <span class="stat">⚡ 12.5/min</span> • <span class="stat">⏱️  2m 15s</span> left         │
-│ <span class="stat">💾 156.3 MB</span> • <span class="stat">🔄 3</span> workers           │
-└─────────────────────────────────────────┘</span></code></pre>
+                            <pre><code><span class="output"><span class="term-header">╭──────────────────────────────────────────────╮</span>
+<span class="term-header">│</span>  <span class="term-logo">◆ IGScraper</span> <span class="term-version">v2.0.0</span>                      <span class="term-header">│</span>
+<span class="term-header">╰──────────────────────────────────────────────╯</span>
+
+<span class="term-user">▸ Scraping:</span> <span class="term-accent">@marcusziade</span>
+<span class="term-stats">▸ Profile:</span>  <span class="term-highlight">1,337 photos</span> • <span class="term-dim">Public</span>
+
+<span class="term-progress-label">Progress</span>
+<span class="progress-container">╔══════════════════════════════════════════╗
+║<span class="progress-fill">████████████████████████████████</span><span class="progress-empty">░░░░░░░░░░</span>║
+╚══════════════════════════════════════════╝</span> <span class="progress-percent">78%</span>
+
+<span class="term-grid">┌─────────────────┬─────────────────────────┐
+│ <span class="term-icon">▼</span> Downloaded   │ <span class="term-value">1044</span>/<span class="term-total">1,337</span> photos     │
+│ <span class="term-icon">⚡</span> Speed        │ <span class="term-value">25.1</span> photos/min      │
+│ <span class="term-icon">◷</span> Time left    │ <span class="term-value">11m 41s</span>              │
+│ <span class="term-icon">◉</span> Workers      │ <span class="term-value">5</span> concurrent         │
+│ <span class="term-icon">▪</span> Size         │ <span class="term-value">2.61 GB</span>              │
+└─────────────────┴─────────────────────────┘</span>
+
+<span class="term-status">Status:</span> <span class="term-success">● Downloading high quality originals...</span></span></code></pre>
                         </div>
                     </div>
                     
@@ -137,7 +149,7 @@ igscraper username</code></pre>
         <div class="container">
             <div class="features-header">
                 <h2 class="section-title">Why IGScraper?</h2>
-                <p class="section-subtitle">Built for developers who need reliable Instagram data extraction</p>
+                <p class="section-subtitle">Built for nerds who need reliable Instagram data extraction</p>
             </div>
             <div class="features-grid compact">
                 <div class="feature-card compact">
@@ -288,14 +300,14 @@ rate_limit:
                     <ul>
                         <li><a href="https://github.com/marcusziade/igscraper">GitHub</a></li>
                         <li><a href="https://github.com/marcusziade/igscraper/issues">Issues</a></li>
-                        <li><a href="https://github.com/marcusziade/igscraper/wiki">Documentation</a></li>
+                        <li><a href="MANUAL.md">Documentation</a></li>
                     </ul>
                 </div>
                 <div class="footer-section">
                     <h4>Legal</h4>
                     <ul>
                         <li><a href="https://github.com/marcusziade/igscraper/blob/master/LICENSE">MIT License</a></li>
-                        <li><a href="#disclaimer">Disclaimer</a></li>
+                        <li><a href="https://github.com/marcusziade/igscraper?tab=readme-ov-file#license">Disclaimer</a></li>
                     </ul>
                 </div>
             </div>

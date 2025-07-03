@@ -205,3 +205,140 @@ platformTabs.forEach(tab => {
         });
     });
 });
+
+// Animated Terminal Functionality
+class TerminalAnimation {
+    constructor() {
+        this.totalPhotos = 1337;
+        this.downloaded = 1044;  // Start at 78%
+        this.speed = 25.1;
+        this.workers = 5;
+        this.size = 2.61;
+        this.startTime = Date.now();
+        this.isPaused = false;
+        this.statusMessages = [
+            '● Downloading high quality originals...',
+            '● Processing metadata...',
+            '● Checking for duplicates...',
+            '● Fetching next batch...',
+            '● Rate limiting active...',
+            '● Optimizing download queue...'
+        ];
+        this.currentStatus = 0;
+        
+        // Start with a slight delay to show initial state
+        setTimeout(() => this.init(), 1000);
+    }
+    
+    init() {
+        // Start animation
+        this.animate();
+        setInterval(() => this.updateStatus(), 3000);
+        
+        // Pause on hover
+        const terminal = document.querySelector('.terminal-window');
+        if (terminal) {
+            terminal.addEventListener('mouseenter', () => this.isPaused = true);
+            terminal.addEventListener('mouseleave', () => this.isPaused = false);
+        }
+    }
+    
+    animate() {
+        if (!this.isPaused && this.downloaded < this.totalPhotos) {
+            // Update progress
+            const increment = Math.floor(Math.random() * 3) + 1;
+            this.downloaded = Math.min(this.downloaded + increment, this.totalPhotos);
+            
+            // Update speed (with smaller variation for smoother changes)
+            const speedVariation = (Math.random() - 0.5) * 4;  // ±2 photos/min
+            this.speed = Math.max(15, Math.min(35, this.speed + speedVariation));
+            
+            // Update size (average 2.5MB per photo)
+            this.size = (this.downloaded * 2.5 / 1000).toFixed(2);
+            
+            // Calculate time left
+            const photosLeft = this.totalPhotos - this.downloaded;
+            const timeLeftMinutes = Math.floor(photosLeft / this.speed);
+            const timeLeftSeconds = Math.floor((photosLeft % this.speed) * (60 / this.speed));
+            
+            // Update DOM
+            this.updateDOM({
+                downloaded: this.downloaded,
+                speed: this.speed.toFixed(1),
+                timeLeft: `${timeLeftMinutes}m ${timeLeftSeconds}s`,
+                size: this.size,
+                progress: Math.floor((this.downloaded / this.totalPhotos) * 100)
+            });
+        }
+        
+        // Continue animation with less frequent updates
+        const delay = 800 + Math.random() * 700;
+        setTimeout(() => this.animate(), delay);
+    }
+    
+    updateStatus() {
+        if (!this.isPaused) {
+            this.currentStatus = (this.currentStatus + 1) % this.statusMessages.length;
+            const statusEl = document.querySelector('.terminal-body .term-success');
+            if (statusEl) {
+                statusEl.textContent = this.statusMessages[this.currentStatus];
+            }
+        }
+    }
+    
+    updateDOM(data) {
+        // Get all term-value elements inside the grid
+        const gridValues = document.querySelectorAll('.term-grid .term-value');
+        
+        // Update downloaded count (first value)
+        if (gridValues[0]) {
+            gridValues[0].textContent = data.downloaded;
+        }
+        
+        // Update speed (second value)
+        if (gridValues[1]) {
+            gridValues[1].textContent = data.speed;
+        }
+        
+        // Update time left (third value)
+        if (gridValues[2]) {
+            gridValues[2].textContent = data.timeLeft;
+        }
+        
+        // Update workers (fourth value - skip, it's constant)
+        
+        // Update size (fifth value)
+        if (gridValues[4]) {
+            gridValues[4].textContent = data.size + ' GB';
+        }
+        
+        // Update progress bar
+        const progressFill = document.querySelector('.progress-fill');
+        const progressEmpty = document.querySelector('.progress-empty');
+        const progressPercent = document.querySelector('.progress-percent');
+        
+        if (progressFill && progressEmpty && progressPercent) {
+            const totalChars = 42;  // Total width inside the progress bar (excluding borders)
+            const fillChars = Math.floor(data.progress / 100 * totalChars);
+            const emptyChars = totalChars - fillChars;
+            
+            progressFill.textContent = '█'.repeat(fillChars);
+            progressEmpty.textContent = '░'.repeat(emptyChars);
+            progressPercent.textContent = data.progress + '%';
+        }
+        
+        // Add pulse effect on update
+        const terminalBody = document.querySelector('.terminal-body');
+        if (terminalBody) {
+            terminalBody.style.opacity = '0.95';
+            setTimeout(() => {
+                terminalBody.style.opacity = '1';
+            }, 100);
+        }
+    }
+}
+
+// Initialize terminal animation when page loads
+document.addEventListener('DOMContentLoaded', () => {
+    new TerminalAnimation();
+});

@@ -29,18 +29,43 @@ var (
 var rootCmd = &cobra.Command{
 	Use:   "igscraper",
 	Short: "A powerful Instagram photo downloader with advanced features",
-	Long: `Instagram Scraper is a command-line tool for downloading photos from Instagram profiles.
+	Long: `IGScraper - Instagram Photo Downloader v` + version + `
 
-Features:
-  - Secure credential storage using system keychain
-  - Concurrent downloads with configurable limits
-  - Smart rate limiting to avoid API restrictions
-  - Progress tracking with beautiful UI
-  - Desktop notifications for download events
-  - Automatic retry with exponential backoff
-  - Resume interrupted downloads
+A command-line tool for downloading photos from Instagram profiles with advanced features
+for power users and developers.
 
-For more information and examples, visit: https://github.com/yourusername/igscraper`,
+FEATURES:
+  • Concurrent Downloads    - Download multiple photos simultaneously
+  • Smart Rate Limiting     - Avoid Instagram API restrictions  
+  • Resume Support          - Continue interrupted downloads
+  • Secure Authentication   - Keychain, encrypted, or environment storage
+  • Multiple UI Modes       - TUI, progress bar, or quiet operation
+  • Duplicate Detection     - Skip already downloaded photos
+  • Metadata Extraction     - Save captions and photo details
+
+QUICK START:
+  1. Authenticate:     igscraper auth login
+  2. Download photos:  igscraper username
+  3. Use TUI mode:     igscraper --tui username
+
+EXAMPLES:
+  # Download all photos from a profile
+  igscraper username
+
+  # Download with beautiful terminal UI
+  igscraper --tui username
+
+  # Download first 100 photos with 5 workers
+  igscraper -l 100 -w 5 username
+
+  # Resume interrupted download
+  igscraper --resume username
+
+DOCUMENTATION:
+  Full manual: https://github.com/marcusziade/igscraper/blob/master/docs/MANUAL.md
+  Report bugs: https://github.com/marcusziade/igscraper/issues
+
+For more information and examples, visit: https://github.com/marcusziade/igscraper`,
 	Version: fmt.Sprintf("%s (commit: %s, built: %s)", version, gitCommit, buildDate),
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		// Progress mode is default unless verbose is specified

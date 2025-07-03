@@ -31,23 +31,40 @@ var (
 var scrapeCmd = &cobra.Command{
 	Use:   "scrape <username>",
 	Short: "Download photos from an Instagram user profile",
-	Long: `Download all photos from an Instagram user's profile.
+	Long: `Download photos from an Instagram user's profile with advanced options.
 
-This command requires valid Instagram credentials to be configured either through:
-  - Stored credentials (use 'igscraper auth login' to store)
-  - Environment variables (IGSCRAPER_SESSION_ID and IGSCRAPER_CSRF_TOKEN)
-  - Configuration file
+AUTHENTICATION:
+  This command requires valid Instagram credentials configured through:
+  • Stored credentials:  igscraper auth login
+  • Environment vars:    IGSCRAPER_SESSION_ID and IGSCRAPER_CSRF_TOKEN
+  • Config file:         ~/.igscraper.yaml
 
-The scraper will create a directory named after the username and download all
-photos with their original quality.`,
-	Example: `  # Download photos using default settings
+FEATURES:
+  • Downloads all photos in original quality
+  • Skips already downloaded files (duplicate detection)
+  • Saves metadata (captions, timestamps, etc.)
+  • Resume interrupted downloads with --resume
+  • Rate limiting to avoid API restrictions
+  • Concurrent downloads for speed
+
+OUTPUT:
+  By default, photos are saved to ./<username>_photos/
+  Each photo is saved as: <shortcode>_<index>.jpg
+  Metadata is saved as: <username>_metadata.json`,
+	Example: `  # Basic download
   igscraper scrape johndoe
 
-  # Download to specific directory with custom concurrent downloads
+  # Use beautiful TUI interface
+  igscraper scrape johndoe --tui
+
+  # Download to specific directory with 5 workers
   igscraper scrape johndoe --output ./photos --concurrent 5
 
-  # Use a specific stored account
-  igscraper scrape johndoe --account myaccount
+  # Resume interrupted download
+  igscraper scrape johndoe --resume
+
+  # Use specific stored account
+  igscraper scrape johndoe --account work_account
 
   # Disable notifications and set custom rate limit
   igscraper scrape johndoe --notifications=false --rate-limit 30

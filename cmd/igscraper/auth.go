@@ -18,38 +18,73 @@ import (
 var authCmd = &cobra.Command{
 	Use:   "auth",
 	Short: "Manage Instagram credentials",
-	Long: `Manage stored Instagram credentials securely.
+	Long: `Manage Instagram credentials for accessing profiles.
 
-Credentials are stored using:
-  - System keychain (when available)
-  - Encrypted file with PBKDF2 key derivation
-  - Environment variables (backward compatibility)
+OVERVIEW:
+  IGScraper requires valid Instagram session cookies to download photos.
+  This command helps you securely store and manage multiple Instagram accounts.
 
-Never share your credentials or config files!`,
+SECURITY:
+  • System Keychain     - Secure OS-level storage (macOS, Linux, Windows)
+  • Encrypted Storage   - AES-256 with PBKDF2 key derivation
+  • Environment Vars    - Legacy support for CI/CD workflows
+  • No passwords stored - Only session cookies are saved
+
+SUBCOMMANDS:
+  login    - Add or update Instagram credentials
+  logout   - Remove stored credentials
+  list     - Show all saved accounts
+  switch   - Select default account
+
+QUICK START:
+  1. Login to Instagram in your browser
+  2. Extract session cookies (see 'auth login --help')
+  3. Store credentials: igscraper auth login
+  4. Start downloading: igscraper username
+
+For detailed instructions, see: https://github.com/marcusziade/igscraper/blob/master/docs/MANUAL.md#authentication`,
 }
 
 // loginCmd represents the auth login command
 var loginCmd = &cobra.Command{
 	Use:   "login [username]",
 	Short: "Store Instagram credentials securely",
-	Long: `Store Instagram credentials securely in the system keychain or encrypted file.
+	Long: `Store Instagram credentials securely for downloading photos.
 
-You will be prompted for:
-  - Instagram username (if not provided)
-  - Session ID (from sessionid cookie)
-  - CSRF Token (from csrftoken cookie)
-  - User Agent (optional, press Enter for default)
+HOW TO GET CREDENTIALS:
+  1. Open Instagram.com in your browser
+  2. Log in to your account
+  3. Open Developer Tools:
+     • Chrome/Edge: F12 or Ctrl+Shift+I (Cmd+Option+I on Mac)
+     • Firefox: F12 or Ctrl+Shift+I (Cmd+Option+I on Mac)
+     • Safari: Enable Developer menu, then Cmd+Option+I
+  4. Navigate to:
+     • Chrome/Edge: Application → Storage → Cookies → instagram.com
+     • Firefox: Storage → Cookies → instagram.com
+     • Safari: Storage → Cookies → instagram.com
+  5. Find and copy these values:
+     • sessionid: Long string with % symbols (e.g., 12345678%3Aabcdef...)
+     • csrftoken: ~32 character string (e.g., YTQHujAgMhyveLvvuwCfw9...)
 
-To get these values:
-1. Log into Instagram in your browser
-2. Open Developer Tools (F12)
-3. Go to Application/Storage > Cookies
-4. Find and copy the sessionid and csrftoken values`,
-	Example: `  # Interactive login
+INTERACTIVE PROMPTS:
+  • Instagram username (if not provided)
+  • Session ID cookie value
+  • CSRF Token cookie value
+  • User Agent string (optional)
+
+SECURITY NOTES:
+  • Credentials are encrypted at rest
+  • Never share your session cookies
+  • Cookies expire - re-login periodically
+  • Each account is stored separately`,
+	Example: `  # Interactive login with guide
   igscraper auth login
 
-  # Login with username
-  igscraper auth login myusername`,
+  # Login with username (skip username prompt)
+  igscraper auth login myusername
+
+  # After login, download photos
+  igscraper cristiano`,
 	Args: cobra.MaximumNArgs(1),
 	Run:  runLogin,
 }
@@ -58,15 +93,27 @@ To get these values:
 var logoutCmd = &cobra.Command{
 	Use:   "logout [username]",
 	Short: "Remove stored credentials",
-	Long: `Remove stored Instagram credentials.
+	Long: `Remove stored Instagram credentials from secure storage.
 
-If no username is provided, you will be shown a list of stored accounts
-to choose from. You can also remove all accounts at once.`,
-	Example: `  # Interactive logout
+BEHAVIOR:
+  • No username: Shows interactive menu of all accounts
+  • With username: Removes specific account directly
+  • Removes from both keychain and encrypted storage
+  • Cannot be undone - credentials must be re-entered
+
+INTERACTIVE MODE:
+  When no username is provided, you can:
+  • Select specific account to remove
+  • Remove all accounts at once
+  • Cancel without changes`,
+	Example: `  # Interactive logout (shows menu)
   igscraper auth logout
 
-  # Logout specific account
-  igscraper auth logout myusername`,
+  # Remove specific account
+  igscraper auth logout myusername
+
+  # Remove all accounts (interactive confirmation)
+  igscraper auth logout`,
 	Args: cobra.MaximumNArgs(1),
 	Run:  runLogout,
 }
@@ -75,7 +122,20 @@ to choose from. You can also remove all accounts at once.`,
 var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all stored accounts",
-	Long:  `List all stored Instagram accounts with sanitized credential information.`,
+	Long: `List all stored Instagram accounts with sanitized credential information.
+
+DISPLAYED INFORMATION:
+  • Username
+  • Session ID (partially hidden)
+  • CSRF Token (partially hidden)
+  • User Agent (if set)
+  • Last modified date
+
+SECURITY:
+  Sensitive values are automatically masked for security.
+  Full credentials are never displayed in plain text.`,
+	Example: `  # List all stored accounts
+  igscraper auth list`,
 	Run:   runList,
 }
 
@@ -83,14 +143,25 @@ var listCmd = &cobra.Command{
 var switchCmd = &cobra.Command{
 	Use:   "switch [username]",
 	Short: "Switch between stored accounts",
-	Long: `Switch between stored Instagram accounts.
+	Long: `Switch between stored Instagram accounts for downloads.
 
-If no username is provided, you will be shown a list of accounts to choose from.`,
-	Example: `  # Interactive switch
+USAGE:
+  • No username: Shows interactive menu to select account
+  • With username: Selects specific account directly
+  
+NOTE:
+  The selected account will be used with the --account flag:
+  igscraper scrape <profile> --account <selected>
+  
+  Without --account flag, the first stored account is used.`,
+	Example: `  # Interactive account selection
   igscraper auth switch
 
   # Switch to specific account
-  igscraper auth switch myusername`,
+  igscraper auth switch work_account
+
+  # Use selected account for download
+  igscraper scrape cristiano --account work_account`,
 	Args: cobra.MaximumNArgs(1),
 	Run:  runSwitch,
 }

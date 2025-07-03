@@ -335,6 +335,37 @@ body {
   max-width: 100%;
 }
 
+/* Solarized terminal colors for light mode */
+:root .terminal-window {
+  --term-bg: #fdf6e3;
+  --term-text: #657b83;
+  --term-border: #eee8d5;
+  --term-header-bg: #eee8d5;
+  --term-accent: #268bd2;
+  --term-success: #859900;
+  --term-warning: #b58900;
+  --term-error: #dc322f;
+  --term-magenta: #d33682;
+  --term-cyan: #2aa198;
+  --term-comment: #93a1a1;
+  --term-highlight: #cb4b16;
+}
+
+[data-theme="dark"] .terminal-window {
+  --term-bg: var(--terminal-bg);
+  --term-text: var(--terminal-text);
+  --term-border: var(--border-color);
+  --term-header-bg: var(--bg-tertiary);
+  --term-accent: var(--accent-primary);
+  --term-success: #10b981;
+  --term-warning: #fbbf24;
+  --term-error: #eb6f92;
+  --term-magenta: #a855f7;
+  --term-cyan: #9ccfd8;
+  --term-comment: #6b7280;
+  --term-highlight: #f6c177;
+}
+
 /* Hero Stats */
 .hero-stats {
   display: flex;
@@ -392,13 +423,17 @@ body {
   }
 }
 
+.terminal-window {
+  background: var(--term-bg);
+}
+
 .terminal-header {
-  background: var(--bg-tertiary);
+  background: var(--term-header-bg);
   padding: 0.5rem 0.75rem;
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--term-border);
 }
 
 .terminal-buttons {
@@ -420,7 +455,7 @@ body {
 .terminal-title {
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.875rem;
-  color: var(--text-tertiary);
+  color: var(--term-comment);
 }
 
 .terminal-body {
@@ -429,15 +464,154 @@ body {
   font-size: clamp(0.7rem, 1.5vw, 0.875rem);
   line-height: 1.4;
   overflow-x: auto;
+  color: var(--term-text);
+  background: var(--term-bg);
+  letter-spacing: 0;
+  font-variant-ligatures: none;
 }
 
 .terminal-body .accent {
-  color: var(--accent-primary);
+  color: var(--term-accent);
   font-weight: 600;
 }
 
+.terminal-body .term-accent {
+  color: var(--term-accent);
+  font-weight: 600;
+}
+
+/* New Terminal Styles */
+.term-header {
+  color: var(--term-comment);
+  opacity: 0.8;
+}
+
+.term-logo {
+  color: var(--term-magenta);
+  font-weight: 700;
+  font-size: 1.1em;
+}
+
+.term-version {
+  color: var(--term-comment);
+  font-size: 0.9em;
+}
+
+.term-user, .term-stats, .term-status {
+  color: var(--term-text);
+  font-weight: 500;
+}
+
+.term-highlight {
+  color: var(--term-warning);
+  font-weight: 600;
+}
+
+.term-dim {
+  color: var(--term-comment);
+  opacity: 0.7;
+}
+
+.term-progress-label {
+  color: var(--term-text);
+  font-weight: 600;
+  display: block;
+  margin-top: 0.5em;
+  margin-bottom: 0.3em;
+}
+
+.progress-container {
+  color: var(--term-comment);
+  line-height: 1.2;
+  display: inline-block;
+  font-family: 'JetBrains Mono', monospace;
+  white-space: pre;
+  letter-spacing: 0;
+}
+
+.progress-fill {
+  color: var(--term-success);
+  font-weight: bold;
+}
+
+.progress-empty {
+  color: var(--term-comment);
+  opacity: 0.5;
+}
+
+.progress-percent {
+  color: var(--term-success);
+  font-weight: 700;
+  margin-left: 0.5em;
+  display: inline-block;
+}
+
+.term-grid {
+  color: var(--term-comment);
+  margin-top: 0.5em;
+  font-family: 'JetBrains Mono', monospace;
+  white-space: pre;
+  letter-spacing: 0;
+  line-height: 1.2;
+}
+
+.term-icon {
+  color: var(--term-cyan);
+  font-weight: bold;
+}
+
+.term-value {
+  color: var(--term-text);
+  font-weight: 600;
+}
+
+.term-total {
+  color: var(--term-comment);
+}
+
+.term-success {
+  color: var(--term-success);
+}
+
+/* Terminal animation */
+@keyframes terminalGlow {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
+}
+
+.terminal-body .progress-fill {
+  animation: terminalGlow 2s ease-in-out infinite;
+}
+
+/* Terminal interactivity */
+.terminal-window {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  cursor: pointer;
+}
+
+.terminal-window:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 40px -10px var(--shadow-color);
+}
+
+.terminal-body {
+  transition: opacity 0.15s ease;
+}
+
+.term-value {
+  transition: color 0.3s ease;
+}
+
+.progress-fill, .progress-empty {
+  transition: all 0.3s ease;
+}
+
+.term-success {
+  transition: opacity 0.5s ease;
+}
+
 .terminal-body .stat {
-  color: var(--accent-secondary);
+  color: var(--term-cyan);
 }
 
 .terminal-body pre {
@@ -445,25 +619,26 @@ body {
 }
 
 .terminal-body code {
-  color: var(--terminal-text);
+  color: var(--term-text);
+  font-family: 'JetBrains Mono', monospace;
 }
 
 .prompt {
-  color: var(--accent-tertiary);
+  color: var(--term-success);
   font-weight: 600;
 }
 
 .comment {
-  color: var(--text-tertiary);
+  color: var(--term-comment);
   font-style: italic;
 }
 
 .output {
-  color: var(--accent-secondary);
+  color: var(--term-cyan);
 }
 
 .progress-bar {
-  color: var(--accent-primary);
+  color: var(--term-accent);
 }
 
 /* Features Section */

@@ -181,4 +181,4 @@ MIT License - See LICENSE file for details
 
 ## Disclaimer
 
-This tool is for educational purposes only. Please respect Instagram's Terms of Service and use responsibly. The authors are not responsible for any misuse of this tool.
+I'm not responsible if you get your Instagram account banned, anon.

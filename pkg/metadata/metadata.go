@@ -10,6 +10,25 @@ import (
 	"igscraper/pkg/instagram"
 )
 
+// UserMetadata represents all metadata for a user's downloaded photos
+type UserMetadata struct {
+	// User information
+	UserID       string    `json:"user_id"`
+	Username     string    `json:"username"`
+	FullName     string    `json:"full_name,omitempty"`
+	Biography    string    `json:"biography,omitempty"`
+	ProfilePicURL string   `json:"profile_pic_url,omitempty"`
+	
+	// Download information
+	DownloadStarted   time.Time `json:"download_started"`
+	DownloadCompleted time.Time `json:"download_completed"`
+	TotalPhotos       int       `json:"total_photos"`
+	DownloadedPhotos  int       `json:"downloaded_photos"`
+	
+	// Photos array
+	Photos []PhotoMetadata `json:"photos"`
+}
+
 // PhotoMetadata represents all metadata for a downloaded photo
 type PhotoMetadata struct {
 	// Core identifiers
@@ -122,9 +141,13 @@ func FromInstagramNode(node *instagram.Node, fileSize int64) *PhotoMetadata {
 	return meta
 }
 
-// Save writes the metadata to a JSON file
-func (m *PhotoMetadata) Save(photoPath string) error {
-	metadataPath := photoPath + ".json"
+// Save writes the user metadata to a JSON file in the output directory
+func (m *UserMetadata) Save(outputDir string) error {
+	metadataPath := filepath.Join(outputDir, "metadata.json")
+	
+	// Update completion time
+	m.DownloadCompleted = time.Now()
+	m.DownloadedPhotos = len(m.Photos)
 	
 	data, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
@@ -138,21 +161,42 @@ func (m *PhotoMetadata) Save(photoPath string) error {
 	return nil
 }
 
-// Load reads metadata from a JSON file
-func Load(photoPath string) (*PhotoMetadata, error) {
-	metadataPath := photoPath + ".json"
+// AddPhoto adds a photo to the user metadata
+func (m *UserMetadata) AddPhoto(photo PhotoMetadata) {
+	m.Photos = append(m.Photos, photo)
+}
+
+// Save writes the metadata to a JSON file (deprecated - for individual photos)
+func (m *PhotoMetadata) Save(photoPath string) error {
+	// This method is deprecated - we now save all metadata in one file
+	// Keeping for backward compatibility but it does nothing
+	return nil
+}
+
+// LoadUserMetadata reads user metadata from the metadata.json file
+func LoadUserMetadata(outputDir string) (*UserMetadata, error) {
+	metadataPath := filepath.Join(outputDir, "metadata.json")
 	
 	data, err := os.ReadFile(metadataPath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil // File doesn't exist yet
+		}
 		return nil, fmt.Errorf("failed to read metadata file: %w", err)
 	}
 
-	var meta PhotoMetadata
+	var meta UserMetadata
 	if err := json.Unmarshal(data, &meta); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
 	}
 
 	return &meta, nil
+}
+
+// Load reads metadata from a JSON file (deprecated)
+func Load(photoPath string) (*PhotoMetadata, error) {
+	// This method is deprecated - we now load all metadata from one file
+	return nil, nil
 }
 
 // GetFormattedCaption returns a truncated caption for display

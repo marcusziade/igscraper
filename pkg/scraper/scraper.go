@@ -231,6 +231,9 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 			"total_photos": totalPhotos,
 		})
 		
+		// Initialize metadata collection
+		s.storageManager.InitializeUserMetadata(username, userID, totalPhotos)
+		
 		// Create new checkpoint if needed
 		if cp == nil {
 			cp, err = checkpointMgr.Create(username, userID)
@@ -338,6 +341,10 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 			if newTotal > 0 {
 				totalPhotos = newTotal
 				s.progress.UpdateTotal(totalPhotos)
+				// Initialize metadata if not already done
+				if s.storageManager.GetUserMetadata() == nil {
+					s.storageManager.InitializeUserMetadata(username, userID, totalPhotos)
+				}
 			}
 		}
 
@@ -429,6 +436,14 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 	// Stop the worker pool and wait for result processor
 	workerPool.Stop()
 	wg.Wait()
+	
+	// Save all collected metadata to a single JSON file
+	if err := s.storageManager.SaveUserMetadata(); err != nil {
+		s.logger.WithError(err).Error("Failed to save metadata file")
+		// Don't fail the entire operation if metadata save fails
+	} else {
+		s.logger.Info("Metadata saved to metadata.json")
+	}
 
 	s.logger.InfoWithFields("Photo download completed successfully", map[string]interface{}{
 		"username":        username,

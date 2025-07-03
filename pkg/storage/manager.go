@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"igscraper/pkg/instagram"
 	"igscraper/pkg/logger"
@@ -18,6 +19,7 @@ type Manager struct {
 	downloadedPhotos map[string]bool
 	mu               sync.RWMutex
 	logger           logger.Logger
+	userMetadata     *metadata.UserMetadata
 }
 
 // NewManager creates a new storage manager with default logger
@@ -46,6 +48,7 @@ func NewManagerWithLogger(outputDir string, log logger.Logger) (*Manager, error)
 		outputDir:        outputDir,
 		downloadedPhotos: make(map[string]bool),
 		logger:           log,
+		userMetadata:     nil, // Will be initialized when starting download
 	}
 
 	// Scan existing files for duplicate detection
@@ -211,13 +214,12 @@ func (m *Manager) SavePhotoWithMetadata(r io.Reader, shortcode string, node *ins
 		return fmt.Errorf("failed to rename temporary file: %w", err)
 	}
 	
-	// Save metadata if node data is provided
-	if node != nil {
+	// Add metadata to collection if node data is provided
+	if node != nil && m.userMetadata != nil {
 		meta := metadata.FromInstagramNode(node, size)
-		if err := meta.Save(filename); err != nil {
-			m.logger.WithError(err).WithField("shortcode", shortcode).Error("Failed to save metadata")
-			// Don't fail the download if metadata save fails
-		}
+		m.mu.Lock()
+		m.userMetadata.AddPhoto(*meta)
+		m.mu.Unlock()
 	}
 	
 	// Update downloaded map
@@ -238,4 +240,37 @@ func (m *Manager) GetDownloadedCount() int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return len(m.downloadedPhotos)
+}
+
+// InitializeUserMetadata initializes the metadata collection for a user
+func (m *Manager) InitializeUserMetadata(username, userID string, totalPhotos int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	
+	m.userMetadata = &metadata.UserMetadata{
+		Username:         username,
+		UserID:           userID,
+		TotalPhotos:      totalPhotos,
+		DownloadStarted:  time.Now(),
+		Photos:           make([]metadata.PhotoMetadata, 0),
+	}
+}
+
+// SaveUserMetadata saves all collected metadata to a single JSON file
+func (m *Manager) SaveUserMetadata() error {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	
+	if m.userMetadata == nil {
+		return nil // Nothing to save
+	}
+	
+	return m.userMetadata.Save(m.outputDir)
+}
+
+// GetUserMetadata returns the collected user metadata
+func (m *Manager) GetUserMetadata() *metadata.UserMetadata {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.userMetadata
 }

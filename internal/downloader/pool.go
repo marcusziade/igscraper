@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"igscraper/pkg/instagram"
 	"igscraper/pkg/logger"
 	"igscraper/pkg/ratelimit"
 )
@@ -17,6 +18,7 @@ type DownloadJob struct {
 	URL       string
 	Shortcode string
 	Username  string
+	Node      *instagram.Node // Full node data for metadata
 }
 
 // DownloadResult represents the result of a download job
@@ -37,6 +39,7 @@ type PhotoDownloader interface {
 type PhotoStorage interface {
 	IsDownloaded(shortcode string) bool
 	SavePhoto(r io.Reader, shortcode string) error
+	SavePhotoWithMetadata(r io.Reader, shortcode string, node *instagram.Node) error
 }
 
 // WorkerPool manages concurrent download workers
@@ -220,8 +223,13 @@ func (wp *WorkerPool) processJob(job DownloadJob, workerID int) DownloadResult {
 	
 	result.Size = len(data)
 	
-	// Save the photo
-	err = wp.storageManager.SavePhoto(bytes.NewReader(data), job.Shortcode)
+	// Save the photo with metadata if available
+	if job.Node != nil {
+		err = wp.storageManager.SavePhotoWithMetadata(bytes.NewReader(data), job.Shortcode, job.Node)
+	} else {
+		err = wp.storageManager.SavePhoto(bytes.NewReader(data), job.Shortcode)
+	}
+	
 	if err != nil {
 		result.Error = fmt.Errorf("save failed: %w", err)
 		result.Duration = time.Since(start)

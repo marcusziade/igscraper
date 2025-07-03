@@ -28,6 +28,7 @@ type Scraper struct {
 	storageManager *storage.Manager
 	rateLimiter    ratelimit.Limiter
 	tracker        *ui.StatusTracker
+	progress       *ui.ProgressDisplay
 	notifier       *ui.Notifier
 	config         *config.Config
 	logger         logger.Logger
@@ -202,26 +203,30 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 	
 	// Get initial user data or use from checkpoint
 	var userID string
+	var totalPhotos int
 	if cp != nil && cp.UserID != "" {
 		userID = cp.UserID
 		s.logger.InfoWithFields("Using user ID from checkpoint", map[string]interface{}{
 			"username": username,
 			"user_id":  userID,
 		})
+		// We don't have total photos from checkpoint, will update later
+		totalPhotos = -1
 	} else {
-		s.logger.DebugWithFields("Fetching user ID", map[string]interface{}{
+		s.logger.DebugWithFields("Fetching user info", map[string]interface{}{
 			"username": username,
 		})
 		
-		userID, err = s.getUserID(username)
+		userID, totalPhotos, err = s.getUserInfo(username)
 		if err != nil {
-			s.logger.WithError(err).WithField("username", username).Error("Failed to get user ID")
-			return fmt.Errorf("failed to get user ID: %w", err)
+			s.logger.WithError(err).WithField("username", username).Error("Failed to get user info")
+			return fmt.Errorf("failed to get user info: %w", err)
 		}
 		
-		s.logger.InfoWithFields("Successfully fetched user ID", map[string]interface{}{
-			"username": username,
-			"user_id":  userID,
+		s.logger.InfoWithFields("Successfully fetched user info", map[string]interface{}{
+			"username":     username,
+			"user_id":      userID,
+			"total_photos": totalPhotos,
 		})
 		
 		// Create new checkpoint if needed
@@ -236,6 +241,15 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 					DownloadedPhotos: make(map[string]string),
 				}
 			}
+		}
+	}
+	
+	// Initialize progress display if not using TUI
+	if s.tui == nil {
+		debugMode := strings.ToLower(s.config.Logging.Level) == "debug"
+		s.progress = ui.NewProgressDisplay(username, totalPhotos, debugMode)
+		if cp != nil && cp.TotalDownloaded > 0 {
+			s.progress.SetDownloadedCount(cp.TotalDownloaded)
 		}
 	}
 
@@ -253,7 +267,11 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 	}
 
 	for hasMore {
-		s.tracker.PrintBatchStatus()
+		if s.progress != nil {
+			s.progress.ScanningBatch(pageNum + 1)
+		} else {
+			s.tracker.PrintBatchStatus()
+		}
 
 		// Rate limit check for API calls (not downloads)
 		if !s.rateLimiter.Allow() {
@@ -268,6 +286,8 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 				resetTime := time.Now().Add(time.Hour)
 				s.tui.UpdateRateLimit(s.config.RateLimit.RequestsPerMinute, s.config.RateLimit.RequestsPerMinute, resetTime)
 				s.tui.LogWarning("Rate limit reached, cooling down for 1 hour")
+			} else if s.progress != nil {
+				s.progress.RateLimitWarning(time.Hour)
 			} else {
 				s.notifier.SendNotification("RATE LIMIT", "Cooling down for 1 hour...")
 				ui.PrintWarning("\n[COOLING DOWN FOR 1 HOUR]\n")
@@ -279,7 +299,7 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 			if s.tui != nil {
 				s.tui.LogInfo("Rate limit cooldown completed, resuming")
 				s.tui.UpdateRateLimit(0, s.config.RateLimit.RequestsPerMinute, time.Now().Add(time.Minute))
-			} else {
+			} else if s.progress == nil {
 				s.notifier.SendNotification("RESUMING", "Continuing extraction process")
 			}
 		}
@@ -308,6 +328,16 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 			"media_count": len(media),
 			"has_next":    pageInfo.HasNextPage,
 		})
+		
+		// Update total photos if we didn't have it before (from checkpoint)
+		if s.progress != nil && totalPhotos == -1 && pageNum == 0 {
+			// Get total from first API call
+			_, newTotal, _ := s.getUserInfo(username)
+			if newTotal > 0 {
+				totalPhotos = newTotal
+				s.progress.UpdateTotal(totalPhotos)
+			}
+		}
 
 		// Queue media items for download
 		for _, edge := range media {
@@ -334,6 +364,7 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 				URL:       edge.Node.DisplayURL,
 				Shortcode: edge.Node.Shortcode,
 				Username:  username,
+				Node:      &edge.Node,
 			}
 			
 			err := workerPool.Submit(job)
@@ -345,11 +376,13 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 				continue
 			}
 			
-			// Notify TUI about new download
+			// Notify about new download
 			if s.tui != nil {
 				// Estimate size (we don't have actual size until download starts)
 				estimatedSize := int64(500000) // 500KB estimate
 				s.tui.StartDownload(edge.Node.Shortcode, username, edge.Node.Shortcode+".jpg", estimatedSize)
+			} else if s.progress != nil {
+				s.progress.StartDownload(edge.Node.Shortcode)
 			}
 			
 			totalQueued++
@@ -411,18 +444,22 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 	}
 	
 	if s.tui == nil {
-		ui.PrintSuccess("\n[EXTRACTION COMPLETED SUCCESSFULLY]\n")
+		if s.progress != nil {
+			s.progress.Complete()
+		} else {
+			ui.PrintSuccess("\n[EXTRACTION COMPLETED SUCCESSFULLY]\n")
+		}
 	} else {
 		s.tui.LogSuccess("Extraction completed successfully for user: %s", username)
 	}
 	return nil
 }
 
-// getUserID fetches the user ID for the given username
-func (s *Scraper) getUserID(username string) (string, error) {
+// getUserInfo fetches the user ID and total photo count for the given username
+func (s *Scraper) getUserInfo(username string) (string, int, error) {
 	endpoint := fmt.Sprintf("https://www.instagram.com/api/v1/users/web_profile_info/?username=%s", username)
 	
-	s.logger.DebugWithFields("Making API request for user ID", map[string]interface{}{
+	s.logger.DebugWithFields("Making API request for user info", map[string]interface{}{
 		"username": username,
 		"endpoint": endpoint,
 	})
@@ -430,23 +467,32 @@ func (s *Scraper) getUserID(username string) (string, error) {
 	var result instagram.InstagramResponse
 	err := s.client.GetJSON(endpoint, &result)
 	if err != nil {
-		s.logger.WithError(err).WithField("username", username).Error("Failed to get user ID")
-		return "", fmt.Errorf("failed to fetch user profile: %w", err)
+		s.logger.WithError(err).WithField("username", username).Error("Failed to get user info")
+		return "", 0, fmt.Errorf("failed to fetch user profile: %w", err)
 	}
 
 	if result.RequiresToLogin {
 		s.logger.WarnWithFields("Profile requires authentication", map[string]interface{}{
 			"username": username,
 		})
-		return "", fmt.Errorf("this profile requires authentication")
+		return "", 0, fmt.Errorf("this profile requires authentication")
 	}
 
-	s.logger.DebugWithFields("Successfully fetched user ID", map[string]interface{}{
-		"username": username,
-		"user_id":  result.Data.User.ID,
+	photoCount := result.Data.User.EdgeOwnerToTimelineMedia.Count
+	
+	s.logger.DebugWithFields("Successfully fetched user info", map[string]interface{}{
+		"username":    username,
+		"user_id":     result.Data.User.ID,
+		"photo_count": photoCount,
 	})
 	
-	return result.Data.User.ID, nil
+	return result.Data.User.ID, photoCount, nil
+}
+
+// getUserID fetches the user ID for the given username (backward compatibility)
+func (s *Scraper) getUserID(username string) (string, error) {
+	userID, _, err := s.getUserInfo(username)
+	return userID, err
 }
 
 // fetchMediaBatch fetches a batch of media items
@@ -488,13 +534,27 @@ func (s *Scraper) processDownloadResults(results <-chan downloader.DownloadResul
 	for result := range results {
 		if result.Success {
 			logger.LogDownload(username, result.Job.Shortcode, "photo", true, nil)
-			s.tracker.IncrementDownloaded()
+			
+			// Extract metadata for progress display
+			var metadata map[string]interface{}
+			if result.Job.Node != nil {
+				metadata = make(map[string]interface{})
+				if len(result.Job.Node.EdgeMediaToCaption.Edges) > 0 {
+					metadata["caption"] = result.Job.Node.EdgeMediaToCaption.Edges[0].Node.Text
+				}
+				metadata["likes"] = result.Job.Node.EdgeLikedBy.Count
+				metadata["comments"] = result.Job.Node.EdgeMediaToComment.Count
+			}
 			
 			if s.tui != nil {
 				// Complete the download in TUI
 				s.tui.CompleteDownload(result.Job.Shortcode)
+			} else if s.progress != nil {
+				// Use new progress display
+				s.progress.CompleteDownload(result.Job.Shortcode, int64(result.Size), metadata)
 			} else {
-				// Use regular progress printing
+				// Fallback to old tracker
+				s.tracker.IncrementDownloaded()
 				s.tracker.PrintProgress()
 			}
 			
@@ -522,6 +582,9 @@ func (s *Scraper) processDownloadResults(results <-chan downloader.DownloadResul
 			if s.tui != nil {
 				// Fail the download in TUI
 				s.tui.FailDownload(result.Job.Shortcode, result.Error)
+			} else if s.progress != nil {
+				// Use new progress display
+				s.progress.FailDownload(result.Job.Shortcode, result.Error)
 			} else {
 				// Use regular error printing
 				ui.PrintError("\nError downloading %s: %v\n", result.Job.Shortcode, result.Error)

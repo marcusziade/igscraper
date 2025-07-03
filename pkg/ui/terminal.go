@@ -22,6 +22,7 @@ var (
 	Red     = colorize("\033[31m%s\033[0m")
 	Green   = colorize("\033[32m%s\033[0m")
 	Magenta = colorize("\033[35m%s\033[0m")
+	Dim     = colorize("\033[2m%s\033[0m")
 )
 
 // colorize returns a function that wraps text with ANSI color codes

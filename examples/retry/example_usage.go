@@ -114,15 +114,8 @@ func ExampleErrorTypeBackoff() {
 		Backoff:     errorBackoff.DefaultBackoff,
 		RetryIf:     retry.DefaultRetryIf,
 		OnRetry: func(attempt int, err error, delay time.Duration) {
-			// Switch backoff based on error type
-			if igErr, ok := err.(*instagram.Error); ok {
-				switch igErr.Type {
-				case instagram.ErrorTypeNetwork:
-					cfg.Backoff = errorBackoff.NetworkErrorBackoff
-				case instagram.ErrorTypeRateLimit:
-					cfg.Backoff = errorBackoff.RateLimitBackoff
-				}
-			}
+			// Log retry information
+			log.Printf("Retry attempt %d after %v delay due to: %v", attempt, delay, err)
 		},
 	}
 	

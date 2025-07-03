@@ -7,7 +7,9 @@ import (
 	"path/filepath"
 	"sync"
 
+	"igscraper/pkg/instagram"
 	"igscraper/pkg/logger"
+	"igscraper/pkg/metadata"
 )
 
 // Manager handles file storage operations and duplicate detection
@@ -174,6 +176,54 @@ func (m *Manager) SavePhoto(r io.Reader, shortcode string) error {
 		"shortcode": shortcode,
 		"filename": filename,
 	}).Info("Photo saved successfully")
+	
+	return nil
+}
+
+// SavePhotoWithMetadata saves a photo and its metadata
+func (m *Manager) SavePhotoWithMetadata(r io.Reader, shortcode string, node *instagram.Node) error {
+	filename := filepath.Join(m.outputDir, fmt.Sprintf("%s.jpg", shortcode))
+	
+	// Create temporary file first
+	tempFile := filename + ".tmp"
+	out, err := os.Create(tempFile)
+	if err != nil {
+		return fmt.Errorf("failed to create temporary file: %w", err)
+	}
+	
+	// Copy data and get file size
+	size, err := io.Copy(out, r)
+	closeErr := out.Close()
+	
+	if err != nil {
+		os.Remove(tempFile)
+		return fmt.Errorf("failed to save photo data: %w", err)
+	}
+	
+	if closeErr != nil {
+		os.Remove(tempFile)
+		return fmt.Errorf("failed to close file: %w", closeErr)
+	}
+	
+	// Atomic rename
+	if err := os.Rename(tempFile, filename); err != nil {
+		os.Remove(tempFile)
+		return fmt.Errorf("failed to rename temporary file: %w", err)
+	}
+	
+	// Save metadata if node data is provided
+	if node != nil {
+		meta := metadata.FromInstagramNode(node, size)
+		if err := meta.Save(filename); err != nil {
+			m.logger.WithError(err).WithField("shortcode", shortcode).Error("Failed to save metadata")
+			// Don't fail the download if metadata save fails
+		}
+	}
+	
+	// Update downloaded map
+	m.mu.Lock()
+	m.downloadedPhotos[shortcode] = true
+	m.mu.Unlock()
 	
 	return nil
 }

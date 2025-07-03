@@ -62,6 +62,43 @@ go build -o igscraper ./cmd/igscraper
 sudo mv igscraper /usr/local/bin/  # Optional: install system-wide
 ```
 
+### Docker
+
+Pull the pre-built image:
+```bash
+docker pull ghcr.io/marcusziade/igscraper:latest
+```
+
+Or build locally:
+```bash
+docker build -t igscraper .
+```
+
+Run with Docker:
+```bash
+# Show help
+docker run --rm igscraper --help
+
+# Download photos (mount downloads directory)
+docker run --rm -v $(pwd)/downloads:/downloads \
+  -e IGSCRAPER_SESSION_ID="your_session_id" \
+  -e IGSCRAPER_CSRF_TOKEN="your_csrf_token" \
+  igscraper username
+```
+
+Use Docker Compose:
+```bash
+# Copy example override file
+cp docker-compose.override.yml.example docker-compose.override.yml
+
+# Edit docker-compose.override.yml to set your username
+# Then run:
+docker-compose up
+
+# Or run directly with a username:
+docker-compose run --rm igscraper username
+```
+
 ## Configuration
 
 The scraper supports multiple configuration methods (in order of precedence):

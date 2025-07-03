@@ -265,6 +265,16 @@ go build -o igscraper ./cmd/igscraper
 sudo mv igscraper /usr/local/bin/</code></pre>
                             </div>
                         </div>
+                        <div class="install-option">
+                            <h4>🐳 Docker</h4>
+                            <div class="code-block compact">
+                                <pre><code># Run with Docker
+docker run --rm -v $(pwd)/downloads:/downloads \
+  -e IGSCRAPER_SESSION_ID="your_session" \
+  -e IGSCRAPER_CSRF_TOKEN="your_token" \
+  ghcr.io/marcusziade/igscraper username</code></pre>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="config-section">

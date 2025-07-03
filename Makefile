@@ -163,6 +163,32 @@ deps-verify: ## Verify dependencies
 	$(GOMOD) verify
 
 
+# Docker targets
+.PHONY: docker-build
+docker-build: ## Build Docker image
+	@echo "Building Docker image..."
+	docker build -t igscraper:$(VERSION) -t igscraper:latest .
+
+.PHONY: docker-run
+docker-run: ## Run Docker container with help
+	@echo "Running Docker container..."
+	docker run --rm -it igscraper:latest --help
+
+.PHONY: docker-compose-up
+docker-compose-up: ## Start services with docker-compose
+	@echo "Starting services with docker-compose..."
+	docker-compose up --build
+
+.PHONY: docker-compose-down
+docker-compose-down: ## Stop services with docker-compose
+	@echo "Stopping services with docker-compose..."
+	docker-compose down
+
+.PHONY: docker-compose-build
+docker-compose-build: ## Build docker-compose services
+	@echo "Building docker-compose services..."
+	docker-compose build
+
 # Release targets
 .PHONY: release-dry-run
 release-dry-run: ## Perform a dry run of goreleaser

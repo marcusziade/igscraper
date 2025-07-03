@@ -85,6 +85,7 @@ checksums.txt
 .goreleaser.yml.local
 
 # Local development
+docker-compose.override.yml
 docker-compose.override.yml.local
 .env.development
 .env.production

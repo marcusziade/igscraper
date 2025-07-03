@@ -31,6 +31,7 @@ This project and everyone participating in it is governed by our Code of Conduct
 ### Prerequisites
 
 - Go 1.23 or higher
+- Docker and Docker Compose (optional, for containerized development)
 - Make (optional but recommended)
 - Pre-commit (optional but recommended)
 
@@ -51,6 +52,21 @@ make setup
 make test
 ```
 
+### Using Docker for Development
+
+```bash
+# Build the Docker image
+make docker-build
+
+# Run with docker-compose
+docker-compose up
+
+# Or run a specific user
+docker-compose run --rm igscraper username
+
+# Run tests in Docker
+docker run --rm -v $(pwd):/app -w /app golang:1.23-alpine go test ./...
+```
 
 ## How to Contribute
 

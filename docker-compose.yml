@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  igscraper:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: igscraper:latest
+    container_name: igscraper
+    volumes:
+      - ./downloads:/downloads
+      - ./config:/config
+    environment:
+      # Instagram credentials (override with .env file or environment)
+      - IGSCRAPER_SESSION_ID=${IGSCRAPER_SESSION_ID}
+      - IGSCRAPER_CSRF_TOKEN=${IGSCRAPER_CSRF_TOKEN}
+      # Configuration options
+      - IGSCRAPER_OUTPUT_BASE_DIRECTORY=/downloads
+      - IGSCRAPER_RATE_LIMIT_REQUESTS_PER_MINUTE=60
+      - IGSCRAPER_DOWNLOAD_CONCURRENT_DOWNLOADS=3
+      - IGSCRAPER_UI_NOTIFICATIONS=false
+      - IGSCRAPER_UI_TUI=false
+    # Override this command to scrape a specific user
+    command: ["--help"]
+    restart: "no"
+    networks:
+      - igscraper-network
+
+networks:
+  igscraper-network:
+    driver: bridge

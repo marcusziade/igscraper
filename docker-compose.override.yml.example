@@ -1,0 +1,29 @@
+# Example override file for development
+# Copy this to docker-compose.override.yml and customize
+
+version: '3.8'
+
+services:
+  igscraper:
+    # Example: Download photos from a specific user
+    command: ["username"]
+    
+    # Example: Use TUI mode
+    # command: ["--tui", "username"]
+    
+    # Example: Download multiple users
+    # command: ["user1", "user2", "user3"]
+    
+    # Additional environment variables for development
+    environment:
+      # Enable debug logging
+      - IGSCRAPER_LOG_LEVEL=debug
+      
+      # Custom output directory
+      - IGSCRAPER_OUTPUT_BASE_DIRECTORY=/downloads
+      
+      # Enable TUI mode
+      # - IGSCRAPER_UI_TUI=true
+      
+      # Increase concurrent downloads
+      # - IGSCRAPER_DOWNLOAD_CONCURRENT_DOWNLOADS=5

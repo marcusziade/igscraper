@@ -7,33 +7,13 @@ before:
   hooks:
     - go mod download
     - go mod tidy
-    - go version
-    - pwd
-    - ls -la
-    - ls -la cmd/igscraper/
-    - go list -f '{{.Dir}} {{.GoFiles}}' ./cmd/igscraper
-    - go build -v -o test-before ./cmd/igscraper
-    - ./test-before --version || echo "Version command failed"
-    - rm -f test-before
 
 builds:
   - id: igscraper
-    main: ./cmd/igscraper/.
+    main: ./cmd/igscraper
     binary: igscraper
-    mod_timestamp: "{{ .CommitTimestamp }}"
     env:
       - CGO_ENABLED=0
-    flags:
-      - -v
-      - -x
-    hooks:
-      pre:
-        - cmd: pwd
-          output: true
-        - cmd: echo "Building for {{ .Target }}"
-          output: true
-        - cmd: go list -f '{{.ImportPath}} {{.Dir}}' ./cmd/igscraper
-          output: true
     goos:
       - linux
       - darwin  

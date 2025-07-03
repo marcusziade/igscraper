@@ -3,246 +3,44 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Tag to release'
-        required: true
-        type: string
+      - '[0-9]+.[0-9]+.[0-9]+'
+      - '[0-9]+.[0-9]+.[0-9]+-*'
 
-env:
-  GO_VERSION: '1.23'
-  DOCKER_REGISTRY: ghcr.io
-  DOCKER_IMAGE_NAME: ${{ github.repository }}
+permissions:
+  contents: write
+  packages: write
 
 jobs:
-  create-release:
-    name: Create Release
+  goreleaser:
     runs-on: ubuntu-latest
-    outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
-      version: ${{ steps.get_version.outputs.version }}
-      
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        
-      - name: Get version
-        id: get_version
-        run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            VERSION=${{ github.event.inputs.tag }}
-          else
-            VERSION=${GITHUB_REF#refs/tags/}
-          fi
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ steps.get_version.outputs.version }}
-          release_name: Release ${{ steps.get_version.outputs.version }}
-          draft: false
-          prerelease: false
-          body: |
-            ## Changes in this Release
-            
-            ### Features
-            - Feature 1
-            - Feature 2
-            
-            ### Bug Fixes
-            - Fix 1
-            - Fix 2
-            
-            ### Docker Image
-            ```bash
-            docker pull ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}:${{ steps.get_version.outputs.version }}
-            ```
-            
-            ### Installation
-            
-            #### Using Go
-            ```bash
-            go install github.com/${{ github.repository }}/cmd/igscraper@${{ steps.get_version.outputs.version }}
-            ```
-            
-            #### Binary Download
-            Download the appropriate binary for your platform from the assets below.
-            
-  build-binaries:
-    name: Build Binaries
-    needs: create-release
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            goos: linux
-            goarch: amd64
-          - os: ubuntu-latest
-            goos: linux
-            goarch: arm64
-          - os: ubuntu-latest
-            goos: linux
-            goarch: arm
-            goarm: 7
-          - os: ubuntu-latest
-            goos: darwin
-            goarch: amd64
-          - os: ubuntu-latest
-            goos: darwin
-            goarch: arm64
-          - os: ubuntu-latest
-            goos: windows
-            goarch: amd64
-          - os: ubuntu-latest
-            goos: windows
-            goarch: arm64
-            
-    runs-on: ${{ matrix.os }}
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          
-      - name: Get dependencies
-        run: go mod download
-        
-      - name: Build binary
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-          GOARM: ${{ matrix.goarm }}
-        run: |
-          VERSION=${{ needs.create-release.outputs.version }}
-          BINARY_NAME=igscraper-${VERSION}-${{ matrix.goos }}-${{ matrix.goarch }}
-          if [ -n "${{ matrix.goarm }}" ]; then
-            BINARY_NAME="${BINARY_NAME}v${{ matrix.goarm }}"
-          fi
-          if [ "${{ matrix.goos }}" = "windows" ]; then
-            BINARY_NAME="${BINARY_NAME}.exe"
-          fi
-          
-          go build -v -ldflags="-w -s -X main.version=${VERSION}" -o ${BINARY_NAME} ./cmd/igscraper
-          
-          # Create archive
-          if [ "${{ matrix.goos }}" = "windows" ]; then
-            zip ${BINARY_NAME}.zip ${BINARY_NAME}
-            ARCHIVE_NAME="${BINARY_NAME}.zip"
-          else
-            tar czf ${BINARY_NAME}.tar.gz ${BINARY_NAME}
-            ARCHIVE_NAME="${BINARY_NAME}.tar.gz"
-          fi
-          
-          echo "ARCHIVE_NAME=${ARCHIVE_NAME}" >> $GITHUB_ENV
-          
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./${{ env.ARCHIVE_NAME }}
-          asset_name: ${{ env.ARCHIVE_NAME }}
-          asset_content_type: application/octet-stream
-          
-  build-docker:
-    name: Build and Push Docker Image
-    needs: create-release
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-      
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-        
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.DOCKER_REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-          
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}},value=${{ needs.create-release.outputs.version }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ needs.create-release.outputs.version }}
-            type=semver,pattern={{major}},value=${{ needs.create-release.outputs.version }}
-            type=sha
-            
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          build-args: |
-            VERSION=${{ needs.create-release.outputs.version }}
-            
-  publish-homebrew:
-    name: Update Homebrew Formula
-    needs: [create-release, build-binaries]
-    runs-on: ubuntu-latest
-    if: ${{ !contains(needs.create-release.outputs.version, '-') }} # Skip pre-releases
-    
-    steps:
-      - name: Update Homebrew Formula
-        uses: dawidd6/action-homebrew-bump-formula@v3
-        with:
-          token: ${{ secrets.HOMEBREW_TOKEN }}
-          formula: igscraper
-          tag: ${{ needs.create-release.outputs.version }}
-          revision: ${{ github.sha }}
-          
-  create-changelog:
-    name: Generate Changelog
-    needs: create-release
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          
-      - name: Generate changelog
-        uses: orhun/git-cliff-action@v2
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          config: .github/cliff.toml
-          args: --latest --strip header
+          go-version: '1.23.4'
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
         env:
-          OUTPUT: CHANGELOG.md
-          
-      - name: Update release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ needs.create-release.outputs.version }}
-          body_path: CHANGELOG.md
-          append_body: true
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          SCOOP_BUCKET_GITHUB_TOKEN: ${{ secrets.SCOOP_BUCKET_GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+          GITHUB_REPOSITORY_NAME: ${{ github.event.repository.name }}

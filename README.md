@@ -16,6 +16,19 @@ A powerful Instagram photo downloader with cyberpunk aesthetics, built in Go.
 
 ## Installation
 
+### Arch Linux (AUR) - Recommended for Arch users
+
+```bash
+# Using yay
+yay -S igscraper
+
+# Using paru
+paru -S igscraper
+
+# For development version
+yay -S igscraper-git
+```
+
 ### Homebrew (macOS and Linux)
 
 ```bash

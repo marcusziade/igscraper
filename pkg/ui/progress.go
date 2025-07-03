@@ -40,12 +40,30 @@ func (st *StatusTracker) ResetBatch() {
 // GetBatchProgress returns a formatted progress bar for the current batch
 func (st *StatusTracker) GetBatchProgress() string {
 	const width = 20
+	
+	// Cap progress at 100% to avoid panic
 	progress := float64(st.CurrentBatch) / float64(MaxPerHour)
+	if progress > 1.0 {
+		progress = 1.0
+	}
+	
 	filled := int(progress * float64(width))
+	if filled > width {
+		filled = width
+	}
+	
+	empty := width - filled
+	if empty < 0 {
+		empty = 0
+	}
 
 	bar := strings.Repeat(ProgressBar, filled) +
-		strings.Repeat(ProgressEmpty, width-filled)
+		strings.Repeat(ProgressEmpty, empty)
 
+	// Show actual count when exceeding limit
+	if st.CurrentBatch > MaxPerHour {
+		return fmt.Sprintf("[%s] %d/%d+", bar, st.CurrentBatch, MaxPerHour)
+	}
 	return fmt.Sprintf("[%s] %d/%d", bar, st.CurrentBatch, MaxPerHour)
 }
 

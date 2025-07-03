@@ -21,6 +21,7 @@ testdata/
 coverage/
 *.test
 *.out
+coverage.out
 
 # Build artifacts
 dist/
@@ -38,6 +39,8 @@ downloads/
 .env.*
 config.yaml
 config.yml
+.igscraper.yaml
+.igscraper.yml
 
 # Documentation
 docs/

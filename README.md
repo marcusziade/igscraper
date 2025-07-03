@@ -98,12 +98,7 @@ See `.igscraper.yaml.example` for all available options.
 
 ## Getting Instagram Credentials
 
-1. Open Instagram in your browser and log in
-2. Open Developer Tools (F12)
-3. Go to Application/Storage → Cookies
-4. Find and copy:
-   - `sessionid` cookie value
-   - `csrftoken` cookie value
+See [docs/extract_instagram_cookies.md](docs/extract_instagram_cookies.md) for detailed instructions on how to extract your Instagram session cookies.
 
 ## Rate Limiting
 

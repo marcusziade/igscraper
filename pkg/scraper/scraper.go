@@ -154,10 +154,13 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 		// Checkpoint exists but resume not requested
 		info, _ := checkpointMgr.GetCheckpointInfo()
 		if info != nil {
-			fmt.Printf("\n%s Previous download found (%d photos)\n", ui.Yellow("►"), info["total_downloaded"])
-			fmt.Printf("  Use: %s to continue where you left off\n", ui.Green("--resume"))
-			fmt.Printf("  Use: %s to start fresh\n\n", ui.Yellow("--force-restart"))
-			return fmt.Errorf("")
+			// Only show checkpoint message if not in quiet mode
+			if !ui.IsQuietMode() {
+				fmt.Printf("\n%s Previous download found (%d photos)\n", ui.Yellow("►"), info["total_downloaded"])
+				fmt.Printf("  Use: %s to continue where you left off\n", ui.Green("--resume"))
+				fmt.Printf("  Use: %s to start fresh\n\n", ui.Yellow("--force-restart"))
+			}
+			return fmt.Errorf("checkpoint exists - use --resume to continue or --force-restart to start fresh")
 		}
 	}
 	
@@ -329,7 +332,7 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 		})
 		
 		// Update total photos if we didn't have it before (from checkpoint)
-		if s.progress != nil && totalPhotos == -1 && pageNum == 0 {
+		if s.progress != nil && totalPhotos == -1 {
 			// Get total from first API call
 			_, newTotal, _ := s.getUserInfo(username)
 			if newTotal > 0 {

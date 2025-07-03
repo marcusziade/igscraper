@@ -79,6 +79,11 @@ func (p *ProgressDisplay) FailDownload(shortcode string, err error) {
 
 // printProgress prints the minimal progress line
 func (p *ProgressDisplay) printProgress() {
+	// Don't print if in quiet mode (unless progress-only mode)
+	if IsQuietMode() && !IsProgressOnlyMode() {
+		return
+	}
+	
 	// Calculate stats
 	elapsed := time.Since(p.startTime)
 	rate := float64(p.downloadedCount) / elapsed.Minutes()
@@ -86,9 +91,22 @@ func (p *ProgressDisplay) printProgress() {
 	
 	// Build progress bar
 	progress := float64(p.downloadedCount) / float64(p.totalPhotos)
+	if p.totalPhotos <= 0 {
+		progress = 0
+	}
 	barWidth := 20
 	filled := int(progress * float64(barWidth))
-	bar := strings.Repeat("━", filled) + strings.Repeat("─", barWidth-filled)
+	if filled > barWidth {
+		filled = barWidth
+	}
+	if filled < 0 {
+		filled = 0
+	}
+	remaining := barWidth - filled
+	if remaining < 0 {
+		remaining = 0
+	}
+	bar := strings.Repeat("━", filled) + strings.Repeat("─", remaining)
 	
 	// Format line
 	line := fmt.Sprintf("\r%s [%s] %d/%d • %.1f/min • %s • %s",
@@ -143,6 +161,11 @@ func (p *ProgressDisplay) printDebugComplete(shortcode string, size int64, metad
 func (p *ProgressDisplay) Complete() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	
+	// Don't print if in quiet mode (unless progress-only mode)
+	if IsQuietMode() && !IsProgressOnlyMode() {
+		return
+	}
 	
 	elapsed := time.Since(p.startTime)
 	
@@ -220,6 +243,11 @@ func (p *ProgressDisplay) RateLimitWarning(waitTime time.Duration) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	
+	// Don't print if in quiet mode
+	if IsQuietMode() {
+		return
+	}
+	
 	fmt.Printf("\n%s Rate limit reached. Waiting %s...\n", 
 		Yellow("⚠"),
 		p.formatDuration(waitTime),
@@ -230,6 +258,11 @@ func (p *ProgressDisplay) RateLimitWarning(waitTime time.Duration) {
 func (p *ProgressDisplay) ScanningBatch(page int) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	
+	// Don't print if in quiet mode
+	if IsQuietMode() {
+		return
+	}
 	
 	if p.isDebug {
 		fmt.Printf("\n%s Scanning page %d...\n", Magenta("→"), page)

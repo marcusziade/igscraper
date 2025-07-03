@@ -1,0 +1,22 @@
+# Minimal test configuration
+version: 2
+
+before:
+  hooks:
+    - go mod download
+
+builds:
+  - main: ./cmd/igscraper
+    binary: igscraper
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+
+archives:
+  - format: tar.gz
+
+release:
+  disable: true

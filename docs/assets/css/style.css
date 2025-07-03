@@ -220,9 +220,9 @@ body {
 
 .hero-grid {
   display: grid;
-  grid-template-columns: 1fr 1.2fr;
-  gap: 2rem;
-  align-items: start;
+  grid-template-columns: 1fr 1fr;
+  gap: 3rem;
+  align-items: center;
 }
 
 .hero-content {
@@ -332,6 +332,7 @@ body {
   overflow: hidden;
   box-shadow: 0 15px 30px -8px var(--shadow-color);
   width: 100%;
+  max-width: 100%;
 }
 
 /* Hero Stats */
@@ -425,8 +426,9 @@ body {
 .terminal-body {
   padding: 1rem;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 0.75rem;
+  font-size: clamp(0.7rem, 1.5vw, 0.875rem);
   line-height: 1.4;
+  overflow-x: auto;
 }
 
 .terminal-body .accent {
@@ -664,8 +666,8 @@ body {
 
 .install-grid {
   display: grid;
-  grid-template-columns: 1.2fr 1fr;
-  gap: 2rem;
+  grid-template-columns: 1fr 1fr;
+  gap: 3rem;
 }
 
 .install-section h2, .config-section h2 {
@@ -684,6 +686,17 @@ body {
   font-size: 1rem;
   margin-bottom: 0.5rem;
   color: var(--accent-primary);
+}
+
+.install-option .code-block {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.install-option pre {
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
 .config-section p {

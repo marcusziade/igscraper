@@ -42,12 +42,26 @@ func New(cfg *config.Config) (*Scraper, error) {
 	
 	// Create Instagram client with retry configuration
 	client := instagram.NewClientWithConfig(cfg.Download.DownloadTimeout, &cfg.Retry, log)
+	
+	// Build cookie string with all necessary cookies
+	var cookies []string
 	if cfg.Instagram.SessionID != "" {
-		client.SetHeader("Cookie", fmt.Sprintf("sessionid=%s", cfg.Instagram.SessionID))
+		cookies = append(cookies, fmt.Sprintf("sessionid=%s", cfg.Instagram.SessionID))
 	}
 	if cfg.Instagram.CSRFToken != "" {
+		cookies = append(cookies, fmt.Sprintf("csrftoken=%s", cfg.Instagram.CSRFToken))
 		client.SetHeader("x-csrftoken", cfg.Instagram.CSRFToken)
 	}
+	
+	// Add other required cookies for Instagram
+	cookies = append(cookies, "ig_did=B989A751-1974-4530-B367-030C95169F23")
+	cookies = append(cookies, "mid=Z5NxAAAEAAHNiER_fWDXTvFWFM3t")
+	cookies = append(cookies, "ds_user_id=192008031")
+	
+	if len(cookies) > 0 {
+		client.SetHeader("Cookie", strings.Join(cookies, "; "))
+	}
+	
 	if cfg.Instagram.UserAgent != "" {
 		client.SetHeader("User-Agent", cfg.Instagram.UserAgent)
 	}
@@ -437,13 +451,9 @@ func (s *Scraper) getUserID(username string) (string, error) {
 
 // fetchMediaBatch fetches a batch of media items
 func (s *Scraper) fetchMediaBatch(username, userID, endCursor string) ([]instagram.Edge, instagram.PageInfo, error) {
-	var endpoint string
-	if endCursor == "" {
-		endpoint = fmt.Sprintf("https://www.instagram.com/api/v1/users/web_profile_info/?username=%s", username)
-	} else {
-		variables := fmt.Sprintf(`{"id":"%s","first":50,"after":"%s"}`, userID, endCursor)
-		endpoint = fmt.Sprintf("https://www.instagram.com/graphql/query/?query_hash=69cba40317214236af40e7efa697781d&variables=%s", variables)
-	}
+	// Always use the media endpoint with the user ID
+	variables := fmt.Sprintf(`{"id":"%s","first":50,"after":"%s"}`, userID, endCursor)
+	endpoint := fmt.Sprintf("https://www.instagram.com/graphql/query/?query_hash=%s&variables=%s", instagram.MediaQueryHash, variables)
 	
 	s.logger.DebugWithFields("Fetching media batch", map[string]interface{}{
 		"username":   username,

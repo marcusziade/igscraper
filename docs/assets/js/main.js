@@ -67,24 +67,7 @@ document.querySelectorAll('.feature-card, .installation-method, .usage-example, 
     observer.observe(el);
 });
 
-// Terminal typing animation
-const terminalOutput = document.querySelector('.terminal-body .output');
-if (terminalOutput) {
-    const originalText = terminalOutput.textContent;
-    terminalOutput.textContent = '';
-    
-    let index = 0;
-    const typeWriter = () => {
-        if (index < originalText.length) {
-            terminalOutput.textContent += originalText.charAt(index);
-            index++;
-            setTimeout(typeWriter, 20);
-        }
-    };
-    
-    // Start typing after a delay
-    setTimeout(typeWriter, 1000);
-}
+// Terminal output is now rendered immediately - no typing animation
 
 // Add parallax effect to hero terminal
 const heroTerminal = document.querySelector('.hero-terminal');

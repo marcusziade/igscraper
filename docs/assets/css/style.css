@@ -78,6 +78,7 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-x: hidden;
 }
 
 body {
@@ -86,12 +87,16 @@ body {
   color: var(--text-primary);
   line-height: 1.6;
   transition: background-color 0.3s ease, color 0.3s ease;
+  overflow-x: hidden;
+  min-width: 320px;
 }
 
 .container {
   max-width: 1200px;
   margin: 0 auto;
   padding: 0 20px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* Theme Toggle */
@@ -301,6 +306,7 @@ body {
   max-width: 700px;
   margin: 0 auto;
   animation: float 6s ease-in-out infinite;
+  width: 100%;
 }
 
 @keyframes float {
@@ -390,7 +396,7 @@ body {
 
 .features-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(350px, 100%), 1fr));
   gap: 2rem;
 }
 
@@ -431,7 +437,7 @@ body {
 
 .installation-content, .usage-examples {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(400px, 100%), 1fr));
   gap: 2rem;
 }
 
@@ -576,22 +582,200 @@ body {
 
 /* Responsive Design */
 @media (max-width: 768px) {
+  /* Navigation */
+  .navbar .container {
+    padding: 1rem 15px;
+  }
+  
+  .nav-brand {
+    font-size: 1.25rem;
+  }
+  
   .nav-links {
-    gap: 1rem;
+    gap: 0.75rem;
+    font-size: 0.875rem;
+  }
+  
+  .github-link {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.875rem;
+  }
+  
+  .github-link svg {
+    width: 16px;
+    height: 16px;
+  }
+  
+  /* Hero Section */
+  .hero {
+    padding: 3rem 0;
+  }
+  
+  .hero-title {
+    font-size: clamp(2rem, 6vw, 3rem);
+  }
+  
+  .subtitle {
+    font-size: 1.25rem;
+  }
+  
+  .hero-description {
+    font-size: 1rem;
+    padding: 0 1rem;
   }
   
   .hero-actions {
     flex-direction: column;
-    align-items: center;
+    align-items: stretch;
+    width: 100%;
+    max-width: 300px;
+    margin: 0 auto 2rem;
   }
   
-  .features-grid, .installation-content, .usage-examples {
+  .btn {
+    padding: 0.75rem 1.5rem;
+    font-size: 0.95rem;
+    text-align: center;
+    justify-content: center;
+  }
+  
+  /* Terminal */
+  .hero-terminal {
+    margin: 0 1rem;
+    font-size: 0.75rem;
+  }
+  
+  .terminal-body {
+    padding: 1rem;
+    overflow-x: auto;
+  }
+  
+  .terminal-body pre {
+    overflow-x: auto;
+    white-space: pre;
+  }
+  
+  /* Features */
+  .features, .installation, .usage, .configuration, .stats {
+    padding: 3rem 0;
+  }
+  
+  .section-title {
+    font-size: 2rem;
+    margin-bottom: 2rem;
+  }
+  
+  .features-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+  
+  .feature-card {
+    padding: 1.5rem;
+  }
+  
+  .feature-icon {
+    font-size: 2.5rem;
+  }
+  
+  .feature-card h3 {
+    font-size: 1.125rem;
+  }
+  
+  /* Code Blocks */
+  .code-block {
+    font-size: 0.75rem;
+    padding: 0.75rem;
+    overflow-x: auto;
+  }
+  
+  .code-block pre {
+    overflow-x: auto;
+    white-space: pre;
+  }
+  
+  /* Installation & Usage */
+  .installation-content, .usage-examples {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+  
+  .installation-method, .usage-example {
+    padding: 1.5rem;
+  }
+  
+  /* Configuration */
+  .config-list {
+    padding: 1.5rem;
+    font-size: 0.95rem;
+  }
+  
+  /* Stats */
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+  
+  .stat-card {
+    padding: 1.5rem;
+  }
+  
+  .stat-value {
+    font-size: 2.5rem;
+  }
+  
+  .stat-label {
+    font-size: 1rem;
+  }
+  
+  /* Footer */
+  .footer {
+    padding: 2rem 0 1rem;
+  }
+  
+  .footer-content {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+  
+  .footer-section {
+    margin-bottom: 1.5rem;
+  }
+  
+  /* Theme Toggle */
+  .theme-toggle {
+    top: auto;
+    bottom: 20px;
+    right: 15px;
+    width: 45px;
+    height: 45px;
+  }
+  
+  .theme-toggle svg {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+/* Extra small devices */
+@media (max-width: 480px) {
+  .hero-title {
+    font-size: 1.75rem;
+  }
+  
+  .subtitle {
+    font-size: 1.1rem;
+  }
+  
+  .stats-grid {
     grid-template-columns: 1fr;
   }
   
-  .theme-toggle {
-    top: auto;
-    bottom: 30px;
-    right: 20px;
+  .nav-links {
+    gap: 0.5rem;
+  }
+  
+  .github-link span {
+    display: none;
   }
 }

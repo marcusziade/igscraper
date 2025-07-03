@@ -77,27 +77,38 @@ kill_port
 # Get local IP address
 LOCAL_IP=$(get_local_ip)
 
-# Start the server
-echo -e "${YELLOW}Starting server accessible on your network${NC}"
-echo -e "${GREEN}Local access:   http://localhost:$PORT${NC}"
-echo -e "${GREEN}Network access: http://$LOCAL_IP:$PORT${NC}"
-echo -e "${YELLOW}Press Ctrl+C to stop the server${NC}"
-echo ""
+# Check if live-server.py exists
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+LIVE_SERVER="$SCRIPT_DIR/live-server.py"
 
-# Change to docs directory
-cd docs
-
-# Add initial delay before starting server
-sleep 0.5  # 500ms delay before starting
-
-# Try to open browser after a short delay
-(sleep 2 && open_browser "http://localhost:$PORT") &
-
-# Start Python HTTP server bound to all interfaces (0.0.0.0)
-if $PYTHON_CMD -c "import sys; sys.exit(0 if sys.version_info[0] >= 3 else 1)" 2>/dev/null; then
-    # Python 3 - bind to all interfaces
-    $PYTHON_CMD -m http.server $PORT --bind 0.0.0.0
+if [ -f "$LIVE_SERVER" ]; then
+    # Use the live reload server
+    echo -e "${GREEN}Starting server with live reload...${NC}"
+    echo -e "${YELLOW}Files will auto-refresh when changed!${NC}"
+    $PYTHON_CMD "$LIVE_SERVER" $PORT
 else
-    # Python 2 - already binds to all interfaces by default
-    $PYTHON_CMD -m SimpleHTTPServer $PORT
+    # Fallback to standard server
+    echo -e "${YELLOW}Starting server accessible on your network${NC}"
+    echo -e "${GREEN}Local access:   http://localhost:$PORT${NC}"
+    echo -e "${GREEN}Network access: http://$LOCAL_IP:$PORT${NC}"
+    echo -e "${YELLOW}Press Ctrl+C to stop the server${NC}"
+    echo ""
+    
+    # Change to docs directory
+    cd docs
+    
+    # Add initial delay before starting server
+    sleep 0.5  # 500ms delay before starting
+    
+    # Try to open browser after a short delay
+    (sleep 2 && open_browser "http://localhost:$PORT") &
+    
+    # Start Python HTTP server bound to all interfaces (0.0.0.0)
+    if $PYTHON_CMD -c "import sys; sys.exit(0 if sys.version_info[0] >= 3 else 1)" 2>/dev/null; then
+        # Python 3 - bind to all interfaces
+        $PYTHON_CMD -m http.server $PORT --bind 0.0.0.0
+    else
+        # Python 2 - already binds to all interfaces by default
+        $PYTHON_CMD -m SimpleHTTPServer $PORT
+    fi
 fi

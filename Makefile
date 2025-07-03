@@ -162,47 +162,6 @@ deps-verify: ## Verify dependencies
 	@echo "Verifying dependencies..."
 	$(GOMOD) verify
 
-# Docker targets
-.PHONY: docker-build
-docker-build: ## Build Docker image
-	@echo "Building Docker image..."
-	docker build -t $(DOCKER_IMAGE):$(VERSION) -t $(DOCKER_IMAGE):latest .
-
-.PHONY: docker-build-multi
-docker-build-multi: ## Build multi-platform Docker image
-	@echo "Building multi-platform Docker image..."
-	docker buildx build --platform linux/amd64,linux/arm64,linux/arm/v7 \
-		-t $(DOCKER_IMAGE):$(VERSION) -t $(DOCKER_IMAGE):latest .
-
-.PHONY: docker-push
-docker-push: ## Push Docker image to registry
-	@echo "Pushing Docker image to registry..."
-	docker tag $(DOCKER_IMAGE):$(VERSION) $(DOCKER_REGISTRY)/$(DOCKER_USERNAME)/$(DOCKER_IMAGE):$(VERSION)
-	docker tag $(DOCKER_IMAGE):latest $(DOCKER_REGISTRY)/$(DOCKER_USERNAME)/$(DOCKER_IMAGE):latest
-	docker push $(DOCKER_REGISTRY)/$(DOCKER_USERNAME)/$(DOCKER_IMAGE):$(VERSION)
-	docker push $(DOCKER_REGISTRY)/$(DOCKER_USERNAME)/$(DOCKER_IMAGE):latest
-
-.PHONY: docker-run
-docker-run: ## Run Docker container
-	@echo "Running Docker container..."
-	docker run --rm -it \
-		-v $(PWD)/downloads:/downloads \
-		-v $(PWD)/config:/config \
-		$(DOCKER_IMAGE):latest
-
-.PHONY: docker-compose-up
-docker-compose-up: ## Start services with docker-compose
-	@echo "Starting services with docker-compose..."
-	docker-compose up -d
-
-.PHONY: docker-compose-down
-docker-compose-down: ## Stop services with docker-compose
-	@echo "Stopping services with docker-compose..."
-	docker-compose down
-
-.PHONY: docker-compose-logs
-docker-compose-logs: ## Show docker-compose logs
-	docker-compose logs -f
 
 # Release targets
 .PHONY: release-dry-run

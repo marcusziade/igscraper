@@ -31,7 +31,6 @@ This project and everyone participating in it is governed by our Code of Conduct
 ### Prerequisites
 
 - Go 1.23 or higher
-- Docker and Docker Compose (optional)
 - Make (optional but recommended)
 - Pre-commit (optional but recommended)
 
@@ -52,18 +51,6 @@ make setup
 make test
 ```
 
-### Using Docker for Development
-
-```bash
-# Build the Docker image
-make docker-build
-
-# Run with docker-compose
-docker-compose up
-
-# Or use the development override
-docker-compose -f docker-compose.yml -f docker-compose.override.yml up
-```
 
 ## How to Contribute
 

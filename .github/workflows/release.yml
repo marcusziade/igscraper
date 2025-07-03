@@ -214,7 +214,7 @@ jobs:
     
     steps:
       - name: Update Homebrew Formula
-        uses: dawidd6/action-homebrew-bump-formula@v3
+        uses: dawidd6/action-homebrew-bump-formula@v5
         with:
           token: ${{ secrets.HOMEBREW_TOKEN }}
           formula: igscraper

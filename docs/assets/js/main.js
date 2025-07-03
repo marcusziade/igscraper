@@ -1,31 +1,56 @@
 // Theme Management
 const themeToggle = document.getElementById('themeToggle');
 const prefersDarkScheme = window.matchMedia('(prefers-color-scheme: dark)');
+let userHasManuallySetTheme = localStorage.getItem('userHasManuallySetTheme') === 'true';
 
-// Get saved theme or use system preference
+// Get theme based on user preference or system
 function getTheme() {
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme) {
-        return savedTheme;
+    // If user has manually set a theme, respect that
+    if (userHasManuallySetTheme) {
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme) {
+            return savedTheme;
+        }
     }
+    // Otherwise, follow system preference
     return prefersDarkScheme.matches ? 'dark' : 'light';
 }
 
 // Apply theme
-function applyTheme(theme) {
+function applyTheme(theme, isManual = false) {
     document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('theme', theme);
+    if (isManual) {
+        localStorage.setItem('theme', theme);
+        localStorage.setItem('userHasManuallySetTheme', 'true');
+        userHasManuallySetTheme = true;
+    }
 }
 
 // Initialize theme
 applyTheme(getTheme());
 
+// Listen for system theme changes
+prefersDarkScheme.addEventListener('change', (e) => {
+    // Only update if user hasn't manually set a theme
+    if (!userHasManuallySetTheme) {
+        applyTheme(e.matches ? 'dark' : 'light');
+    }
+});
+
 // Theme toggle click handler
 themeToggle.addEventListener('click', () => {
     const currentTheme = document.documentElement.getAttribute('data-theme');
     const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-    applyTheme(newTheme);
+    applyTheme(newTheme, true); // Mark as manual change
 });
+
+// Add option to reset to system preference
+window.resetThemeToSystem = () => {
+    localStorage.removeItem('theme');
+    localStorage.removeItem('userHasManuallySetTheme');
+    userHasManuallySetTheme = false;
+    applyTheme(prefersDarkScheme.matches ? 'dark' : 'light');
+};
 
 // Smooth scrolling for navigation links
 document.querySelectorAll('a[href^="#"]').forEach(anchor => {

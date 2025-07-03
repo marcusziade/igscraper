@@ -96,7 +96,7 @@ func NewModel(maxConcurrent int) Model {
 }
 
 // Init initializes the model
-func (m Model) Init() tea.Cmd {
+func (m *Model) Init() tea.Cmd {
 	return m.spinner.Tick
 }
 

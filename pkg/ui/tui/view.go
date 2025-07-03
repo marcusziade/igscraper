@@ -9,7 +9,7 @@ import (
 )
 
 // View renders the entire TUI
-func (m Model) View() string {
+func (m *Model) View() string {
 	if m.width == 0 || m.height == 0 {
 		return "Initializing..."
 	}
@@ -46,7 +46,7 @@ func (m Model) View() string {
 }
 
 // renderLogo renders the cyberpunk logo
-func (m Model) renderLogo() string {
+func (m *Model) renderLogo() string {
 	logo := `
 ╔══════════════════════════════════════════════════════════════╗
 ║ ██╗███╗   ██╗███████╗████████╗ █████╗  ██████╗ ██████╗  ███╗ ║
@@ -62,7 +62,7 @@ func (m Model) renderLogo() string {
 }
 
 // renderLeftColumn renders the left side of the UI
-func (m Model) renderLeftColumn() string {
+func (m *Model) renderLeftColumn() string {
 	width := (m.width - 4) / 2
 
 	var sections []string
@@ -80,7 +80,7 @@ func (m Model) renderLeftColumn() string {
 }
 
 // renderRightColumn renders the right side of the UI
-func (m Model) renderRightColumn() string {
+func (m *Model) renderRightColumn() string {
 	width := (m.width - 4) / 2
 
 	var sections []string
@@ -95,7 +95,7 @@ func (m Model) renderRightColumn() string {
 }
 
 // renderStatsPanel renders the statistics panel
-func (m Model) renderStatsPanel(width int) string {
+func (m *Model) renderStatsPanel(width int) string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -125,7 +125,7 @@ func (m Model) renderStatsPanel(width int) string {
 }
 
 // renderActiveDownloadsPanel renders the active downloads
-func (m Model) renderActiveDownloadsPanel(width int) string {
+func (m *Model) renderActiveDownloadsPanel(width int) string {
 	title := titleStyle.Render(" ACTIVE DOWNLOADS ")
 	
 	active := m.GetActiveDownloads()
@@ -150,7 +150,7 @@ func (m Model) renderActiveDownloadsPanel(width int) string {
 }
 
 // renderDownloadItem renders a single download with progress bar
-func (m Model) renderDownloadItem(item *DownloadItem, width int) string {
+func (m *Model) renderDownloadItem(item *DownloadItem, width int) string {
 	m.mu.RLock()
 	progressBar, ok := m.progressBars[item.ID]
 	m.mu.RUnlock()
@@ -179,7 +179,7 @@ func (m Model) renderDownloadItem(item *DownloadItem, width int) string {
 }
 
 // renderQueuePanel renders the download queue
-func (m Model) renderQueuePanel(width int) string {
+func (m *Model) renderQueuePanel(width int) string {
 	title := titleStyle.Render(" DOWNLOAD QUEUE ")
 	
 	pending := m.GetPendingDownloads()
@@ -220,7 +220,7 @@ func (m Model) renderQueuePanel(width int) string {
 }
 
 // renderRateLimitPanel renders the rate limit status
-func (m Model) renderRateLimitPanel(width int) string {
+func (m *Model) renderRateLimitPanel(width int) string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -256,7 +256,7 @@ func (m Model) renderRateLimitPanel(width int) string {
 }
 
 // renderLogsPanel renders the logs panel
-func (m Model) renderLogsPanel(width int) string {
+func (m *Model) renderLogsPanel(width int) string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -301,7 +301,7 @@ func (m Model) renderLogsPanel(width int) string {
 }
 
 // renderHelp renders the help panel
-func (m Model) renderHelp() string {
+func (m *Model) renderHelp() string {
 	help := `
   Navigation:
     q/Q      - Quit the application

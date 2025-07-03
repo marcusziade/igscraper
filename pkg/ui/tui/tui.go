@@ -10,17 +10,17 @@ import (
 // TUI represents the terminal user interface
 type TUI struct {
 	program *tea.Program
-	model   Model
+	model   *Model
 }
 
 // NewTUI creates a new TUI instance
 func NewTUI(maxConcurrent int) *TUI {
 	model := NewModel(maxConcurrent)
-	program := tea.NewProgram(model, tea.WithAltScreen())
+	program := tea.NewProgram(&model, tea.WithAltScreen())
 	
 	return &TUI{
 		program: program,
-		model:   model,
+		model:   &model,
 	}
 }
 

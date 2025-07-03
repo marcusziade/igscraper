@@ -154,10 +154,10 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 		// Checkpoint exists but resume not requested
 		info, _ := checkpointMgr.GetCheckpointInfo()
 		if info != nil {
-			ui.PrintWarning("Existing checkpoint found. Use --resume to continue or --force-restart to start over.")
-			ui.PrintInfo("Checkpoint info", fmt.Sprintf("Downloaded: %d photos, Last updated: %v ago", 
-				info["total_downloaded"], info["age"]))
-			return fmt.Errorf("checkpoint exists, use --resume to continue")
+			fmt.Printf("\n%s Previous download found (%d photos)\n", ui.Yellow("►"), info["total_downloaded"])
+			fmt.Printf("  Use: %s to continue where you left off\n", ui.Green("--resume"))
+			fmt.Printf("  Use: %s to start fresh\n\n", ui.Yellow("--force-restart"))
+			return fmt.Errorf("")
 		}
 	}
 	
@@ -191,7 +191,6 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 		s.logger,
 	)
 	workerPool.Start()
-	defer workerPool.Stop()
 	
 	// Start result processor goroutine
 	var wg sync.WaitGroup

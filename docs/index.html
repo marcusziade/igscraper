@@ -40,7 +40,7 @@
                 <li><a href="#features">Features</a></li>
                 <li><a href="#installation">Installation</a></li>
                 <li><a href="#usage">Usage</a></li>
-                <li><a href="https://github.com/yourusername/igscraper" target="_blank" class="github-link">
+                <li><a href="https://github.com/marcusziade/igscraper" target="_blank" class="github-link">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
                     </svg>
@@ -67,18 +67,18 @@
                     <div class="quick-start">
                         <h3>Quick Start</h3>
                         <div class="code-block compact">
-                            <pre><code><span class="comment"># Install</span>
-git clone https://github.com/yourusername/igscraper
-go build -o igscraper cmd/igscraper/main.go
+                            <pre><code><span class="comment"># Install with Homebrew</span>
+brew tap marcusziade/tap
+brew install igscraper
 
 <span class="comment"># Run</span>
-./igscraper username</code></pre>
+igscraper username</code></pre>
                         </div>
                     </div>
                     
                     <div class="hero-actions">
-                        <a href="https://github.com/yourusername/igscraper" class="btn btn-primary">Get the Code</a>
-                        <a href="#features" class="btn btn-secondary">Learn More</a>
+                        <a href="https://github.com/marcusziade/igscraper" class="btn btn-primary">Get the Code</a>
+                        <a href="#installation" class="btn btn-secondary">Install Now</a>
                     </div>
                 </div>
                 
@@ -204,30 +204,53 @@ IGSCRAPER_CSRF_TOKEN="your_token"</code></pre>
     </section>
 
     <!-- Installation & Config -->
-    <section class="install-config">
+    <section id="installation" class="install-config">
         <div class="container">
             <div class="install-grid">
                 <div class="install-section">
                     <h2>Installation</h2>
                     <div class="install-options">
                         <div class="install-option">
-                            <h4>🍺 Homebrew</h4>
+                            <h4>🍺 Homebrew <span class="recommended">Recommended</span></h4>
                             <div class="code-block compact">
                                 <pre><code>brew tap marcusziade/tap
 brew install igscraper</code></pre>
                             </div>
                         </div>
                         <div class="install-option">
-                            <h4>📦 From Source</h4>
-                            <div class="code-block compact">
-                                <pre><code>git clone https://github.com/yourusername/igscraper
-cd igscraper && go build -o igscraper cmd/igscraper/main.go</code></pre>
+                            <h4>📦 Download Binary</h4>
+                            <div class="platform-tabs">
+                                <button class="platform-tab active" data-platform="macos">macOS</button>
+                                <button class="platform-tab" data-platform="linux">Linux</button>
+                                <button class="platform-tab" data-platform="windows">Windows</button>
+                            </div>
+                            <div class="code-block compact" id="macos-install">
+                                <pre><code># Intel Mac
+curl -L https://github.com/marcusziade/igscraper/releases/latest/download/igscraper_Darwin_x86_64.tar.gz | tar xz
+# Apple Silicon
+curl -L https://github.com/marcusziade/igscraper/releases/latest/download/igscraper_Darwin_arm64.tar.gz | tar xz
+sudo mv igscraper /usr/local/bin/</code></pre>
+                            </div>
+                            <div class="code-block compact hidden" id="linux-install">
+                                <pre><code># AMD64
+curl -L https://github.com/marcusziade/igscraper/releases/latest/download/igscraper_Linux_x86_64.tar.gz | tar xz
+# ARM64
+curl -L https://github.com/marcusziade/igscraper/releases/latest/download/igscraper_Linux_arm64.tar.gz | tar xz
+sudo mv igscraper /usr/local/bin/</code></pre>
+                            </div>
+                            <div class="code-block compact hidden" id="windows-install">
+                                <pre><code># Download the zip file from:
+# https://github.com/marcusziade/igscraper/releases/latest
+# Extract and add to PATH</code></pre>
                             </div>
                         </div>
                         <div class="install-option">
-                            <h4>🐳 Docker</h4>
+                            <h4>🛠️ Build from Source</h4>
                             <div class="code-block compact">
-                                <pre><code>docker run -v ./downloads:/downloads yourusername/igscraper username</code></pre>
+                                <pre><code>git clone https://github.com/marcusziade/igscraper
+cd igscraper
+go build -o igscraper ./cmd/igscraper
+sudo mv igscraper /usr/local/bin/</code></pre>
                             </div>
                         </div>
                     </div>
@@ -263,15 +286,15 @@ rate_limit:
                 <div class="footer-section">
                     <h4>Quick Links</h4>
                     <ul>
-                        <li><a href="https://github.com/yourusername/igscraper">GitHub</a></li>
-                        <li><a href="https://github.com/yourusername/igscraper/issues">Issues</a></li>
-                        <li><a href="https://github.com/yourusername/igscraper/wiki">Documentation</a></li>
+                        <li><a href="https://github.com/marcusziade/igscraper">GitHub</a></li>
+                        <li><a href="https://github.com/marcusziade/igscraper/issues">Issues</a></li>
+                        <li><a href="https://github.com/marcusziade/igscraper/wiki">Documentation</a></li>
                     </ul>
                 </div>
                 <div class="footer-section">
                     <h4>Legal</h4>
                     <ul>
-                        <li><a href="https://github.com/yourusername/igscraper/blob/master/LICENSE">MIT License</a></li>
+                        <li><a href="https://github.com/marcusziade/igscraper/blob/master/LICENSE">MIT License</a></li>
                         <li><a href="#disclaimer">Disclaimer</a></li>
                     </ul>
                 </div>

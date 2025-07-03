@@ -16,10 +16,50 @@ A powerful Instagram photo downloader with cyberpunk aesthetics, built in Go.
 
 ## Installation
 
+### Homebrew (macOS and Linux)
+
 ```bash
-git clone https://github.com/yourusername/igscraper.git
+brew tap marcusziade/tap
+brew install igscraper
+```
+
+### Download Binary
+
+Download the latest release for your platform from the [releases page](https://github.com/marcusziade/igscraper/releases).
+
+#### macOS
+```bash
+# Intel Mac
+curl -L https://github.com/marcusziade/igscraper/releases/latest/download/igscraper_Darwin_x86_64.tar.gz | tar xz
+sudo mv igscraper /usr/local/bin/
+
+# Apple Silicon Mac
+curl -L https://github.com/marcusziade/igscraper/releases/latest/download/igscraper_Darwin_arm64.tar.gz | tar xz
+sudo mv igscraper /usr/local/bin/
+```
+
+#### Linux
+```bash
+# AMD64
+curl -L https://github.com/marcusziade/igscraper/releases/latest/download/igscraper_Linux_x86_64.tar.gz | tar xz
+sudo mv igscraper /usr/local/bin/
+
+# ARM64
+curl -L https://github.com/marcusziade/igscraper/releases/latest/download/igscraper_Linux_arm64.tar.gz | tar xz
+sudo mv igscraper /usr/local/bin/
+```
+
+#### Windows
+
+Download the appropriate `.zip` file from the [releases page](https://github.com/marcusziade/igscraper/releases) and extract `igscraper.exe` to a directory in your PATH.
+
+### Build from Source
+
+```bash
+git clone https://github.com/marcusziade/igscraper.git
 cd igscraper
-go build -o igscraper cmd/igscraper/main.go
+go build -o igscraper ./cmd/igscraper
+sudo mv igscraper /usr/local/bin/  # Optional: install system-wide
 ```
 
 ## Configuration

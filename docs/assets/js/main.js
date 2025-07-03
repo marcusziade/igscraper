@@ -180,3 +180,28 @@ document.querySelectorAll('.code-block').forEach(block => {
         }
     });
 });
+
+// Platform tabs functionality
+const platformTabs = document.querySelectorAll('.platform-tab');
+const installBlocks = {
+    macos: document.getElementById('macos-install'),
+    linux: document.getElementById('linux-install'),
+    windows: document.getElementById('windows-install')
+};
+
+platformTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+        const platform = tab.getAttribute('data-platform');
+        
+        // Update active tab
+        platformTabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        
+        // Show corresponding install block
+        Object.keys(installBlocks).forEach(key => {
+            if (installBlocks[key]) {
+                installBlocks[key].classList.toggle('hidden', key !== platform);
+            }
+        });
+    });
+});

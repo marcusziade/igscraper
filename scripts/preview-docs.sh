@@ -13,12 +13,13 @@ NC='\033[0m' # No Color
 # Default port
 PORT=${1:-8080}
 
-# Function to check if port is in use
-check_port() {
-    if lsof -Pi :$PORT -sTCP:LISTEN -t >/dev/null 2>&1; then
-        echo -e "${RED}Port $PORT is already in use${NC}"
-        echo "Please specify a different port: ./scripts/preview-docs.sh 8081"
-        exit 1
+# Function to kill existing process on port
+kill_port() {
+    local pids=$(lsof -ti :$PORT 2>/dev/null)
+    if [ ! -z "$pids" ]; then
+        echo -e "${YELLOW}Killing existing process on port $PORT...${NC}"
+        kill -9 $pids 2>/dev/null || true
+        sleep 0.5  # 500ms delay to ensure port is freed
     fi
 }
 
@@ -59,8 +60,8 @@ else
     PYTHON_CMD="python3"
 fi
 
-# Check port availability
-check_port
+# Kill any existing process on the port
+kill_port
 
 # Start the server
 echo -e "${YELLOW}Starting local server on http://localhost:$PORT${NC}"
@@ -69,6 +70,9 @@ echo ""
 
 # Change to docs directory
 cd docs
+
+# Add initial delay before starting server
+sleep 0.5  # 500ms delay before starting
 
 # Try to open browser after a short delay
 (sleep 2 && open_browser "http://localhost:$PORT") &

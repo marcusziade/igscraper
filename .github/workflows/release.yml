@@ -8,7 +8,6 @@ on:
 
 permissions:
   contents: write
-  packages: write
 
 jobs:
   goreleaser:
@@ -24,67 +23,14 @@ jobs:
         with:
           go-version: '1.23.4'
 
-      - name: Debug environment
-        run: |
-          echo "=== Go environment ==="
-          go version
-          go env
-          echo ""
-          echo "=== Module info ==="
-          go list -m
-          echo ""
-          echo "=== Directory structure ==="
-          pwd
-          ls -la
-          echo ""
-          echo "=== cmd/igscraper contents ==="
-          ls -la cmd/igscraper/
-          echo ""
-          echo "=== Package info ==="
-          go list -f '{{.ImportPath}} {{.Dir}} {{.GoFiles}}' ./cmd/igscraper
-          echo ""
-          echo "=== Test standard build ==="
-          go build -v -o test-build ./cmd/igscraper
-          ./test-build --version || echo "Version flag not working"
-          rm -f test-build
-          echo ""
-          echo "=== Test build with explicit files ==="
-          cd cmd/igscraper && go build -v -o ../../test-build2 . && cd ../..
-          ./test-build2 --version || echo "Version flag not working"
-          rm -f test-build2
-
-      - name: Install GoReleaser
-        uses: goreleaser/goreleaser-action@v6
-        with:
-          distribution: goreleaser
-          version: "~> v2"
-          install-only: true
-
-      - name: Test minimal GoReleaser config
-        run: |
-          echo "=== Testing minimal GoReleaser config ==="
-          goreleaser build --config .goreleaser.minimal.yml --snapshot --single-target --verbose || echo "Minimal config also failed"
-          echo ""
-          echo "=== Testing with package import path ==="
-          goreleaser build --config .goreleaser.test2.yml --snapshot --single-target --verbose || echo "Package import path also failed"
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --clean --verbose
+          args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
-          SCOOP_BUCKET_GITHUB_TOKEN: ${{ secrets.SCOOP_BUCKET_GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
           GITHUB_REPOSITORY_NAME: ${{ github.event.repository.name }}

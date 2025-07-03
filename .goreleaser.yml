@@ -1,6 +1,4 @@
-# .goreleaser.yml
-project_name: igscraper
-
+# Minimal GoReleaser configuration
 version: 2
 
 before:
@@ -16,7 +14,7 @@ builds:
       - CGO_ENABLED=0
     goos:
       - linux
-      - darwin  
+      - darwin
       - windows
     goarch:
       - amd64
@@ -25,97 +23,27 @@ builds:
       - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}} -X main.builtBy=goreleaser
 
 archives:
-  - id: default
-    name_template: >-
+  - name_template: >-
       {{ .ProjectName }}_
       {{- title .Os }}_
       {{- if eq .Arch "amd64" }}x86_64
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
-      {{- if .Arm }}v{{ .Arm }}{{ end }}
     format_overrides:
       - goos: windows
-        formats: 
+        formats:
           - zip
-    files:
-      - LICENSE*
-      - README*
-      - CHANGELOG*
 
 checksum:
   name_template: 'checksums.txt'
-  algorithm: sha256
-
-snapshot:
-  version_template: "{{ incpatch .Version }}-next"
 
 changelog:
   sort: asc
-  use: github
   filters:
     exclude:
       - '^docs:'
       - '^test:'
       - '^chore:'
-      - '^ci:'
-      - 'typo'
-      - 'README'
-  groups:
-    - title: 'Features'
-      regexp: "^.*feat[(\\w)]*:+.*$"
-      order: 0
-    - title: 'Bug fixes'
-      regexp: "^.*fix[(\\w)]*:+.*$"
-      order: 1
-    - title: 'Performance'
-      regexp: "^.*perf[(\\w)]*:+.*$"
-      order: 2
-    - title: 'Refactors'
-      regexp: "^.*refactor[(\\w)]*:+.*$"
-      order: 3
-    - title: Others
-      order: 999
-
-dockers:
-  - goos: linux
-    goarch: amd64
-    ids:
-      - igscraper
-    image_templates:
-      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:latest"
-      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:{{ .Tag }}"
-      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:v{{ .Major }}"
-      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:v{{ .Major }}.{{ .Minor }}"
-    skip_push: false
-    dockerfile: Dockerfile
-    use: buildx
-    build_flag_templates:
-      - "--pull"
-      - "--label=org.opencontainers.image.created={{.Date}}"
-      - "--label=org.opencontainers.image.title={{.ProjectName}}"
-      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-      - "--label=org.opencontainers.image.version={{.Version}}"
-      - "--label=org.opencontainers.image.source={{.GitURL}}"
-      - "--push"
-      - "--platform=linux/amd64,linux/arm64"
-
-nfpms:
-  - id: packages
-    package_name: igscraper
-    vendor: igscraper
-    homepage: https://github.com/{{ .Env.GITHUB_REPOSITORY }}
-    maintainer: Maintainer <maintainer@example.com>
-    description: Instagram photo scraper
-    license: MIT
-    formats:
-      - deb
-      - rpm
-      - apk
-    dependencies:
-      - ca-certificates
-    bindir: /usr/bin
-    section: utils
-    priority: optional
 
 release:
   github:
@@ -123,7 +51,3 @@ release:
     name: "{{ .Env.GITHUB_REPOSITORY_NAME }}"
   draft: false
   prerelease: auto
-  header: |
-    ## What's Changed
-    
-    **Full Changelog**: https://github.com/{{ .Env.GITHUB_REPOSITORY }}/compare/{{ .PreviousTag }}...{{ .Tag }}

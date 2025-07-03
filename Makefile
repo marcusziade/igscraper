@@ -241,9 +241,8 @@ docs: ## Generate documentation
 	godoc -http=:6060
 
 .PHONY: docs-preview
-docs-preview: ## Preview landing page with live reload
-	@echo "Starting documentation preview server..."
-	@python3 scripts/serve-docs.py
+docs-preview: ## Preview landing page
+	@./scripts/preview-docs.sh
 
 .PHONY: changelog
 changelog: ## Generate changelog

@@ -99,53 +99,6 @@ body {
   box-sizing: border-box;
 }
 
-/* Theme Toggle */
-.theme-toggle {
-  position: fixed;
-  top: 80px;
-  right: 30px;
-  z-index: 1000;
-  background: var(--bg-secondary);
-  border: 2px solid var(--border-color);
-  border-radius: 50%;
-  width: 50px;
-  height: 50px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 6px var(--shadow-color);
-}
-
-.theme-toggle:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 12px var(--shadow-color);
-}
-
-.theme-toggle svg {
-  width: 24px;
-  height: 24px;
-  transition: all 0.3s ease;
-}
-
-.sun-icon {
-  color: var(--accent-primary);
-}
-
-.moon-icon {
-  display: none;
-  color: var(--accent-tertiary);
-}
-
-[data-theme="dark"] .sun-icon {
-  display: none;
-}
-
-[data-theme="dark"] .moon-icon {
-  display: block;
-}
-
 /* Navigation */
 .navbar {
   background: var(--bg-secondary);

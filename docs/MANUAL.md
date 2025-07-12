@@ -31,16 +31,16 @@ IGScraper is a command-line tool for downloading photos from Instagram profiles.
 
 ### Homebrew (Recommended)
 ```bash
-brew tap marcusziade/tap
+brew tap guitaripod/tap
 brew install igscraper
 ```
 
 ### Direct Download
-Download the latest binary from [releases](https://github.com/marcusziade/igscraper/releases).
+Download the latest binary from [releases](https://github.com/guitaripod/igscraper/releases).
 
 ### Build from Source
 ```bash
-git clone https://github.com/marcusziade/igscraper
+git clone https://github.com/guitaripod/igscraper
 cd igscraper
 go build -o igscraper ./cmd/igscraper
 ```
@@ -342,7 +342,7 @@ igscraper --version
 
 ### License
 
-IGScraper is released under the MIT License. See [LICENSE](https://github.com/marcusziade/igscraper/blob/master/LICENSE) for details.
+IGScraper is released under the MIT License. See [LICENSE](https://github.com/guitaripod/igscraper/blob/master/LICENSE) for details.
 
 ### Disclaimer
 
@@ -352,8 +352,8 @@ By using this tool, you acknowledge that:
 - You will respect the rights of content creators
 - The tool is provided "as is" without warranties
 
-For more information, see our [full disclaimer](https://github.com/marcusziade/igscraper?tab=readme-ov-file#license).
+For more information, see our [full disclaimer](https://github.com/guitaripod/igscraper?tab=readme-ov-file#license).
 
 ---
 
-For issues, feature requests, or contributions, visit [GitHub](https://github.com/marcusziade/igscraper).
+For issues, feature requests, or contributions, visit [GitHub](https://github.com/guitaripod/igscraper).

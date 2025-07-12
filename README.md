@@ -32,44 +32,44 @@ yay -S igscraper-git
 ### Homebrew (macOS and Linux)
 
 ```bash
-brew tap marcusziade/tap
+brew tap guitaripod/tap
 brew install igscraper
 ```
 
 ### Download Binary
 
-Download the latest release for your platform from the [releases page](https://github.com/marcusziade/igscraper/releases).
+Download the latest release for your platform from the [releases page](https://github.com/guitaripod/igscraper/releases).
 
 #### macOS
 ```bash
 # Intel Mac
-curl -L https://github.com/marcusziade/igscraper/releases/latest/download/igscraper_Darwin_x86_64.tar.gz | tar xz
+curl -L https://github.com/guitaripod/igscraper/releases/latest/download/igscraper_Darwin_x86_64.tar.gz | tar xz
 sudo mv igscraper /usr/local/bin/
 
 # Apple Silicon Mac
-curl -L https://github.com/marcusziade/igscraper/releases/latest/download/igscraper_Darwin_arm64.tar.gz | tar xz
+curl -L https://github.com/guitaripod/igscraper/releases/latest/download/igscraper_Darwin_arm64.tar.gz | tar xz
 sudo mv igscraper /usr/local/bin/
 ```
 
 #### Linux
 ```bash
 # AMD64
-curl -L https://github.com/marcusziade/igscraper/releases/latest/download/igscraper_Linux_x86_64.tar.gz | tar xz
+curl -L https://github.com/guitaripod/igscraper/releases/latest/download/igscraper_Linux_x86_64.tar.gz | tar xz
 sudo mv igscraper /usr/local/bin/
 
 # ARM64
-curl -L https://github.com/marcusziade/igscraper/releases/latest/download/igscraper_Linux_arm64.tar.gz | tar xz
+curl -L https://github.com/guitaripod/igscraper/releases/latest/download/igscraper_Linux_arm64.tar.gz | tar xz
 sudo mv igscraper /usr/local/bin/
 ```
 
 #### Windows
 
-Download the appropriate `.zip` file from the [releases page](https://github.com/marcusziade/igscraper/releases) and extract `igscraper.exe` to a directory in your PATH.
+Download the appropriate `.zip` file from the [releases page](https://github.com/guitaripod/igscraper/releases) and extract `igscraper.exe` to a directory in your PATH.
 
 ### Build from Source
 
 ```bash
-git clone https://github.com/marcusziade/igscraper.git
+git clone https://github.com/guitaripod/igscraper.git
 cd igscraper
 go build -o igscraper ./cmd/igscraper
 sudo mv igscraper /usr/local/bin/  # Optional: install system-wide
@@ -79,7 +79,7 @@ sudo mv igscraper /usr/local/bin/  # Optional: install system-wide
 
 Pull the pre-built image:
 ```bash
-docker pull ghcr.io/marcusziade/igscraper:latest
+docker pull ghcr.io/guitaripod/igscraper:latest
 ```
 
 Or build locally:

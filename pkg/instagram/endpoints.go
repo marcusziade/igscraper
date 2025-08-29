@@ -16,7 +16,7 @@ const (
 	MediaEndpoint = "/graphql/query/"
 
 	// MediaQueryHash is the query hash for fetching user media
-	MediaQueryHash = "e769aa130647d2354c40ea6a439bfc08"
+	MediaQueryHash = "b3055c01b4b222b8a47dc12b090e4e64"
 
 	// DefaultMediaLimit is the default number of media items to fetch per request
 	DefaultMediaLimit = 12
@@ -29,7 +29,7 @@ const (
 func GetProfileURL(username string) string {
 	params := url.Values{}
 	params.Set("username", username)
-	
+
 	return fmt.Sprintf("%s%s?%s", BaseURL, ProfileEndpoint, params.Encode())
 }
 

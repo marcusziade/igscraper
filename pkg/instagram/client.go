@@ -1,7 +1,6 @@
 package instagram
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -30,11 +29,11 @@ const (
 
 // Client represents an Instagram API client
 type Client struct {
-	httpClient *http.Client
-	headers    map[string]string
-	baseURL    string
-	logger     logger.Logger
-	retrier    *retry.HTTPRetrier
+	httpClient  *http.Client
+	headers     map[string]string
+	baseURL     string
+	logger      logger.Logger
+	retrier     *retry.HTTPRetrier
 	retryConfig *config.RetryConfig
 }
 
@@ -48,24 +47,25 @@ func NewClient(timeout time.Duration, log logger.Logger) *Client {
 	return &Client{
 		httpClient: &http.Client{
 			Timeout: timeout,
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				if len(via) >= 1 {
+					return http.ErrUseLastResponse
+				}
+				return nil
+			},
 		},
 		headers: map[string]string{
-			"User-Agent":       "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+			"User-Agent":       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
 			"Accept":           "*/*",
-			"Accept-Language":  "en-US,en;q=0.9",
-			"Cache-Control":    "no-cache",
-			"Pragma":           "no-cache",
-			"Sec-Fetch-Dest":   "empty",
-			"Sec-Fetch-Mode":   "cors",
-			"Sec-Fetch-Site":   "same-origin",
+			"Accept-Language":  "en-US,en;q=0.5",
 			"X-IG-App-ID":      "936619743392459",
 			"X-Requested-With": "XMLHttpRequest",
 			"Referer":          "https://www.instagram.com/",
 		},
-		baseURL: BaseURL,
-		logger:  log,
-		retrier: retry.NewHTTPRetrier(3, log), // Default 3 retries
-		retryConfig: nil, // Will be set via SetRetryConfig
+		baseURL:     BaseURL,
+		logger:      log,
+		retrier:     retry.NewHTTPRetrier(3, log),
+		retryConfig: nil,
 	}
 }
 
@@ -76,27 +76,27 @@ func NewClientWithConfig(timeout time.Duration, retryConfig *config.RetryConfig,
 		log = logger.GetLogger()
 	}
 
-	// Create retrier based on config
 	var retrier *retry.HTTPRetrier
 	if retryConfig != nil && retryConfig.Enabled {
 		retrier = retry.NewHTTPRetrier(retryConfig.MaxAttempts, log)
 	} else {
-		retrier = retry.NewHTTPRetrier(0, log) // No retries
+		retrier = retry.NewHTTPRetrier(0, log)
 	}
 
 	return &Client{
 		httpClient: &http.Client{
 			Timeout: timeout,
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				if len(via) >= 1 {
+					return http.ErrUseLastResponse
+				}
+				return nil
+			},
 		},
 		headers: map[string]string{
-			"User-Agent":       "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+			"User-Agent":       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
 			"Accept":           "*/*",
-			"Accept-Language":  "en-US,en;q=0.9",
-			"Cache-Control":    "no-cache",
-			"Pragma":           "no-cache",
-			"Sec-Fetch-Dest":   "empty",
-			"Sec-Fetch-Mode":   "cors",
-			"Sec-Fetch-Site":   "same-origin",
+			"Accept-Language":  "en-US,en;q=0.5",
 			"X-IG-App-ID":      "936619743392459",
 			"X-Requested-With": "XMLHttpRequest",
 			"Referer":          "https://www.instagram.com/",
@@ -120,18 +120,28 @@ func (c *Client) SetHeaders(headers map[string]string) {
 	}
 }
 
-// doRequest performs an HTTP request with the configured headers
 func (c *Client) doRequest(req *http.Request) (*http.Response, error) {
-	// Set all headers
 	for key, value := range c.headers {
 		req.Header.Set(key, value)
 	}
 
-	// Log the request
 	start := time.Now()
+	headerLog := make(map[string]string)
+	for k, v := range req.Header {
+		if k == "Cookie" && len(v) > 0 {
+			if len(v[0]) > 50 {
+				headerLog[k] = v[0][:50] + "..."
+			} else {
+				headerLog[k] = v[0]
+			}
+		} else if len(v) > 0 {
+			headerLog[k] = v[0]
+		}
+	}
 	c.logger.DebugWithFields("sending HTTP request", map[string]interface{}{
-		"method": req.Method,
-		"url":    req.URL.String(),
+		"method":  req.Method,
+		"url":     req.URL.String(),
+		"headers": headerLog,
 	})
 
 	resp, err := c.httpClient.Do(req)
@@ -151,7 +161,6 @@ func (c *Client) doRequest(req *http.Request) (*http.Response, error) {
 		}
 	}
 
-	// Log successful response
 	c.logger.DebugWithFields("HTTP request completed", map[string]interface{}{
 		"method":   req.Method,
 		"url":      req.URL.String(),
@@ -162,16 +171,14 @@ func (c *Client) doRequest(req *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
-// doRequestWithRetry performs an HTTP request with retry logic using the retry package
 func (c *Client) doRequestWithRetry(req *http.Request) (*http.Response, error) {
 	if c.retrier == nil || (c.retryConfig != nil && !c.retryConfig.Enabled) {
-		// No retry configured, just do the request
 		return c.doRequest(req)
 	}
-	
+
 	var resp *http.Response
 	var lastErr error
-	
+
 	err := c.retrier.DoWithErrorType(func() error {
 		var err error
 		resp, err = c.doRequest(req)
@@ -179,7 +186,7 @@ func (c *Client) doRequestWithRetry(req *http.Request) (*http.Response, error) {
 			lastErr = err
 			return err
 		}
-		
+
 		// Check if response indicates we should retry
 		if resp.StatusCode >= 500 || resp.StatusCode == http.StatusTooManyRequests {
 			lastErr = &errors.Error{
@@ -193,7 +200,7 @@ func (c *Client) doRequestWithRetry(req *http.Request) (*http.Response, error) {
 			resp.Body.Close()
 			return lastErr
 		}
-		
+
 		// Check for other errors that shouldn't be retried
 		if resp.StatusCode == 401 || resp.StatusCode == 403 {
 			lastErr = &errors.Error{
@@ -203,7 +210,7 @@ func (c *Client) doRequestWithRetry(req *http.Request) (*http.Response, error) {
 			}
 			return lastErr
 		}
-		
+
 		if resp.StatusCode == 404 {
 			lastErr = &errors.Error{
 				Type:    errors.ErrorTypeNotFound,
@@ -212,14 +219,14 @@ func (c *Client) doRequestWithRetry(req *http.Request) (*http.Response, error) {
 			}
 			return lastErr
 		}
-		
+
 		return nil
 	})
-	
+
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return resp, nil
 }
 
@@ -267,7 +274,7 @@ func (c *Client) GetJSON(url string, target interface{}) error {
 		if len(bodyPreview) > 200 {
 			bodyPreview = bodyPreview[:200] + "..."
 		}
-		
+
 		c.logger.ErrorWithFields("failed to parse JSON response", map[string]interface{}{
 			"url":          url,
 			"status":       resp.StatusCode,
@@ -348,12 +355,12 @@ func (c *Client) checkResponseStatus(resp *http.Response) error {
 // FetchUserProfile fetches the Instagram user profile data
 func (c *Client) FetchUserProfile(username string) (*InstagramResponse, error) {
 	url := GetProfileURL(username)
-	
+
 	c.logger.DebugWithFields("fetching user profile", map[string]interface{}{
 		"username": username,
 		"url":      url,
 	})
-	
+
 	var response InstagramResponse
 	if err := c.GetJSON(url, &response); err != nil {
 		c.logger.ErrorWithFields("failed to fetch user profile", map[string]interface{}{
@@ -382,16 +389,68 @@ func (c *Client) FetchUserProfile(username string) (*InstagramResponse, error) {
 	return &response, nil
 }
 
-// FetchUserMedia fetches paginated media for a user
 func (c *Client) FetchUserMedia(userID string, after string) (*InstagramResponse, error) {
-	url := GetMediaURL(userID, after)
-	
-	c.logger.DebugWithFields("fetching user media", map[string]interface{}{
+	url := fmt.Sprintf("%s/api/v1/feed/user/%s/", BaseURL, userID)
+	if after != "" {
+		url = fmt.Sprintf("%s?max_id=%s", url, after)
+	}
+
+	c.logger.DebugWithFields("fetching user media via feed API", map[string]interface{}{
 		"user_id": userID,
 		"after":   after,
 		"url":     url,
 	})
-	
+
+	var feedResponse map[string]interface{}
+	if err := c.GetJSON(url, &feedResponse); err == nil {
+		response := &InstagramResponse{
+			Status: "ok",
+			Data: Data{
+				User: User{
+					ID:                       userID,
+					EdgeOwnerToTimelineMedia: EdgeOwnerToTimelineMedia{},
+				},
+			},
+		}
+
+		if items, ok := feedResponse["items"].([]interface{}); ok {
+			for _, item := range items {
+				if itemMap, ok := item.(map[string]interface{}); ok {
+					edge := c.parseFeedItem(itemMap)
+					if edge != nil {
+						response.Data.User.EdgeOwnerToTimelineMedia.Edges = append(
+							response.Data.User.EdgeOwnerToTimelineMedia.Edges,
+							*edge,
+						)
+					}
+				}
+			}
+		}
+
+		if moreAvailable, ok := feedResponse["more_available"].(bool); ok {
+			response.Data.User.EdgeOwnerToTimelineMedia.PageInfo.HasNextPage = moreAvailable
+		}
+		if nextMaxID, ok := feedResponse["next_max_id"].(string); ok {
+			response.Data.User.EdgeOwnerToTimelineMedia.PageInfo.EndCursor = nextMaxID
+		}
+
+		c.logger.DebugWithFields("successfully fetched user media via feed API", map[string]interface{}{
+			"user_id":     userID,
+			"after":       after,
+			"media_count": len(response.Data.User.EdgeOwnerToTimelineMedia.Edges),
+		})
+
+		return response, nil
+	}
+
+	url = GetMediaURL(userID, after)
+
+	c.logger.DebugWithFields("falling back to GraphQL API", map[string]interface{}{
+		"user_id": userID,
+		"after":   after,
+		"url":     url,
+	})
+
 	var response InstagramResponse
 	if err := c.GetJSON(url, &response); err != nil {
 		c.logger.ErrorWithFields("failed to fetch user media", map[string]interface{}{
@@ -403,104 +462,100 @@ func (c *Client) FetchUserMedia(userID string, after string) (*InstagramResponse
 	}
 
 	c.logger.DebugWithFields("successfully fetched user media", map[string]interface{}{
-		"user_id": userID,
+		"user_id":     userID,
+		"after":       after,
+		"media_count": len(response.Data.User.EdgeOwnerToTimelineMedia.Edges),
 	})
 
 	return &response, nil
 }
 
-// DownloadPhoto downloads a photo from the given URL with retry logic
+// DownloadPhoto downloads a photo from the given URL
 func (c *Client) DownloadPhoto(photoURL string) ([]byte, error) {
-	c.logger.DebugWithFields("downloading photo", map[string]interface{}{
-		"url": photoURL,
-	})
+	resp, err := c.Get(photoURL)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
 
-	// Use specific retry config for downloads if available
-	var data []byte
-	var downloadErr error
-	
-	if c.retryConfig != nil && c.retryConfig.Enabled {
-		// Create custom retry config for downloads
-		retryConfig := &retry.Config{
-			MaxAttempts: c.retryConfig.NetworkRetries,
-			Backoff: &retry.ExponentialBackoff{
-				BaseDelay:    c.retryConfig.NetworkBaseDelay,
-				MaxDelay:     c.retryConfig.MaxDelay,
-				Multiplier:   c.retryConfig.Multiplier,
-				JitterFactor: c.retryConfig.JitterFactor,
-			},
-			RetryIf: retry.DefaultRetryIf,
-			Context: context.Background(),
-			Logger:  c.logger,
+	// Check status code
+	if resp.StatusCode != http.StatusOK {
+		return nil, &errors.Error{
+			Type:    errors.ErrorTypeNetwork,
+			Message: fmt.Sprintf("failed to download photo: HTTP %d", resp.StatusCode),
+			Code:    resp.StatusCode,
 		}
-		
-		err := retry.Do(func() error {
-			resp, err := c.Get(photoURL)
-			if err != nil {
-				downloadErr = err
-				return err
-			}
-			defer resp.Body.Close()
-			
-			if err := c.checkResponseStatus(resp); err != nil {
-				downloadErr = err
-				return err
-			}
-			
-			data, err = io.ReadAll(resp.Body)
-			if err != nil {
-				downloadErr = &errors.Error{
-					Type:    errors.ErrorTypeNetwork,
-					Message: fmt.Sprintf("failed to read photo data: %v", err),
-					Code:    0,
+	}
+
+	// Read the response body
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, &errors.Error{
+			Type:    errors.ErrorTypeNetwork,
+			Message: fmt.Sprintf("failed to read photo data: %v", err),
+			Code:    resp.StatusCode,
+		}
+	}
+
+	return data, nil
+}
+
+func (c *Client) parseFeedItem(item map[string]interface{}) *Edge {
+	edge := &Edge{
+		Node: Node{},
+	}
+
+	if code, ok := item["code"].(string); ok {
+		edge.Node.Shortcode = code
+	}
+
+	if id, ok := item["id"].(string); ok {
+		edge.Node.ID = id
+	} else if pk, ok := item["pk"].(string); ok {
+		edge.Node.ID = pk
+	}
+
+	if imageVersions, ok := item["image_versions2"].(map[string]interface{}); ok {
+		if candidates, ok := imageVersions["candidates"].([]interface{}); ok && len(candidates) > 0 {
+			if candidate, ok := candidates[0].(map[string]interface{}); ok {
+				if url, ok := candidate["url"].(string); ok {
+					edge.Node.DisplayURL = url
 				}
-				return downloadErr
-			}
-			
-			return nil
-		}, retryConfig)
-		
-		if err != nil {
-			c.logger.ErrorWithFields("failed to download photo after retries", map[string]interface{}{
-				"url":   photoURL,
-				"error": err.Error(),
-			})
-			return nil, err
-		}
-	} else {
-		// No retry, just download once
-		resp, err := c.Get(photoURL)
-		if err != nil {
-			c.logger.ErrorWithFields("failed to download photo", map[string]interface{}{
-				"url":   photoURL,
-				"error": err.Error(),
-			})
-			return nil, err
-		}
-		defer resp.Body.Close()
-		
-		if err := c.checkResponseStatus(resp); err != nil {
-			return nil, err
-		}
-		
-		data, err = io.ReadAll(resp.Body)
-		if err != nil {
-			c.logger.ErrorWithFields("failed to read photo data", map[string]interface{}{
-				"url":   photoURL,
-				"error": err.Error(),
-			})
-			return nil, &errors.Error{
-				Type:    errors.ErrorTypeNetwork,
-				Message: fmt.Sprintf("failed to download photo: %v", err),
-				Code:    0,
 			}
 		}
 	}
 
-	c.logger.DebugWithFields("successfully downloaded photo", map[string]interface{}{
-		"url":  photoURL,
-		"size": len(data),
-	})
+	if carouselMedia, ok := item["carousel_media"].([]interface{}); ok && len(carouselMedia) > 0 {
+		if firstItem, ok := carouselMedia[0].(map[string]interface{}); ok {
+			if imageVersions, ok := firstItem["image_versions2"].(map[string]interface{}); ok {
+				if candidates, ok := imageVersions["candidates"].([]interface{}); ok && len(candidates) > 0 {
+					if candidate, ok := candidates[0].(map[string]interface{}); ok {
+						if url, ok := candidate["url"].(string); ok {
+							edge.Node.DisplayURL = url
+						}
+					}
+				}
+			}
+		}
+	}
 
-	return data, nil
+	if caption, ok := item["caption"].(map[string]interface{}); ok {
+		if text, ok := caption["text"].(string); ok {
+			edge.Node.EdgeMediaToCaption = EdgeMediaToCaption{
+				Edges: []CaptionEdge{
+					{Node: CaptionNode{Text: text}},
+				},
+			}
+		}
+	}
+
+	if takenAt, ok := item["taken_at"].(float64); ok {
+		edge.Node.TakenAtTimestamp = int64(takenAt)
+	}
+
+	if mediaType, ok := item["media_type"].(float64); ok {
+		edge.Node.IsVideo = mediaType == 2
+	}
+
+	return edge
 }

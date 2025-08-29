@@ -1,5 +1,27 @@
 # Instagram Photo Scraper - Netrunner Edition
 
+> [!IMPORTANT]
+> ## ⚠️ CURRENTLY NON-FUNCTIONAL - Instagram API Changes (August 2025)
+> 
+> **This scraper is currently not working due to recent Instagram API security updates.**
+> 
+> Instagram has implemented new anti-automation measures that prevent this tool from accessing media content, even with valid session credentials. While the authentication appears to succeed, Instagram now blocks the actual photo fetching with 401 errors.
+> 
+> **What happened:**
+> - Instagram updated their API security in late August 2025
+> - The `/api/v1/feed/user/` endpoint now requires additional verification
+> - Standard session cookies are no longer sufficient for automated access
+> 
+> **Current status:**
+> - ❌ Cannot download photos (401 authentication errors)
+> - ❌ Session cookies alone are insufficient
+> - ✅ Core application logic remains solid
+> - ✅ Will resume working if/when Instagram API access is restored
+> 
+> This is part of Instagram's ongoing efforts to prevent automated data collection. We're monitoring the situation, but there is no immediate fix available.
+> 
+> ---
+
 A powerful Instagram photo downloader with cyberpunk aesthetics, built in Go.
 
 ## Features

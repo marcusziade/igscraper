@@ -221,17 +221,26 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 				break
 			}
 
-			s.logger.WithError(err).WithField("username", username).Error("Failed to get user info - will retry")
+			s.logger.WithError(err).WithField("username", username).Error("Failed to get user info")
 
-			var waitTime time.Duration
 			errStr := err.Error()
-			if strings.Contains(errStr, "401") || strings.Contains(errStr, "auth") || strings.Contains(errStr, "302") {
-				waitTime = 30 * time.Minute
-				ui.PrintWarning("Authentication Issue", fmt.Sprintf("Instagram requires authentication. Waiting %v before retry", waitTime))
-				ui.PrintInfo("Persistent Mode", "The scraper will keep retrying until successful. Press Ctrl+C to stop.")
+
+			// 302 = redirect to login, session is completely invalid
+			if strings.Contains(errStr, "302") || strings.Contains(errStr, "session expired") {
+				ui.PrintError("Session Dead", "Instagram session is invalid and won't recover automatically")
+				ui.PrintInfo("To Fix", "Run: igscraper auth login")
+				return fmt.Errorf("session expired - requires new login")
+			}
+
+			// 401 could be temporary rate limiting - worth retrying
+			var waitTime time.Duration
+			if strings.Contains(errStr, "401") || strings.Contains(errStr, "auth") {
+				waitTime = 2 * time.Hour
+				ui.PrintWarning("Rate Limited", fmt.Sprintf("Instagram is temporarily blocking. Waiting %v", waitTime))
+				ui.PrintInfo("Auto-Retry", "Will keep trying every 2 hours. Press Ctrl+C to stop.")
 			} else {
 				waitTime = 5 * time.Minute
-				ui.PrintWarning("Failed to Get Profile", fmt.Sprintf("Waiting %v before retry", waitTime))
+				ui.PrintWarning("Temporary Error", fmt.Sprintf("Waiting %v before retry", waitTime))
 			}
 
 			// Show countdown
@@ -359,9 +368,16 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 			var waitTime time.Duration
 			errStr := err.Error()
 
-			if strings.Contains(errStr, "401") || strings.Contains(errStr, "auth") || strings.Contains(errStr, "302") {
-				// Authentication/rate limit error - wait longer
-				waitTime = time.Duration(30+consecutiveErrors*30) * time.Minute
+			// Check for dead session first
+			if strings.Contains(errStr, "302") || strings.Contains(errStr, "session expired") {
+				// Session is dead, but we already have user ID from initial fetch
+				// Just wait longer and hope user fixes it
+				waitTime = 4 * time.Hour
+				ui.PrintWarning("Session Invalid", "Instagram session expired. Will retry in 4 hours.")
+				ui.PrintInfo("Fix Now", "Run 'igscraper auth login' in another terminal to update credentials")
+			} else if strings.Contains(errStr, "401") || strings.Contains(errStr, "auth") {
+				// This might be temporary rate limiting
+				waitTime = time.Duration(60+consecutiveErrors*30) * time.Minute
 				s.logger.Info("Rate limited - will wait and retry")
 				ui.PrintWarning("Rate Limited", fmt.Sprintf("Instagram is blocking requests. Waiting %v before retry (attempt %d)", waitTime, consecutiveErrors))
 			} else if strings.Contains(errStr, "429") {

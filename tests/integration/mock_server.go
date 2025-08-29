@@ -35,19 +35,19 @@ func NewMockInstagramServer(fixturesDir string) *MockInstagramServer {
 	}
 
 	mux := http.NewServeMux()
-	
+
 	// Profile endpoint
 	mux.HandleFunc("/api/v1/users/web_profile_info/", m.handleProfile)
-	
+
 	// Media endpoint
 	mux.HandleFunc("/graphql/query/", m.handleMedia)
-	
+
 	// Photo download endpoint (simulated CDN)
 	mux.HandleFunc("/photos/", m.handlePhotoDownload)
-	
+
 	// Authentication endpoint
 	mux.HandleFunc("/accounts/login/", m.handleLogin)
-	
+
 	m.server = httptest.NewServer(mux)
 	return m
 }
@@ -55,19 +55,19 @@ func NewMockInstagramServer(fixturesDir string) *MockInstagramServer {
 // handleProfile handles user profile requests
 func (m *MockInstagramServer) handleProfile(w http.ResponseWriter, r *http.Request) {
 	atomic.AddInt32(&m.requestCount, 1)
-	
+
 	// Simulate delay if configured
 	username := r.URL.Query().Get("username")
 	if delay := m.getDelay("/api/v1/users/web_profile_info/" + username); delay > 0 {
 		time.Sleep(delay)
 	}
-	
+
 	// Check for configured errors
 	if errorCode := m.getErrorResponse("/api/v1/users/web_profile_info/" + username); errorCode > 0 {
 		m.sendError(w, errorCode, username)
 		return
 	}
-	
+
 	// Simulate rate limiting
 	if m.shouldRateLimit() {
 		atomic.AddInt32(&m.rateLimitHits, 1)
@@ -79,7 +79,7 @@ func (m *MockInstagramServer) handleProfile(w http.ResponseWriter, r *http.Reque
 		})
 		return
 	}
-	
+
 	// Load fixture based on username
 	fixturePath := filepath.Join(m.fixturesDir, fmt.Sprintf("profile_%s.json", username))
 	data, err := ioutil.ReadFile(fixturePath)
@@ -96,7 +96,7 @@ func (m *MockInstagramServer) handleProfile(w http.ResponseWriter, r *http.Reque
 			return
 		}
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(data)
 }
@@ -104,39 +104,39 @@ func (m *MockInstagramServer) handleProfile(w http.ResponseWriter, r *http.Reque
 // handleMedia handles media pagination requests
 func (m *MockInstagramServer) handleMedia(w http.ResponseWriter, r *http.Request) {
 	atomic.AddInt32(&m.requestCount, 1)
-	
+
 	// Parse query parameters
 	queryHash := r.URL.Query().Get("query_hash")
 	variablesStr := r.URL.Query().Get("variables")
-	
-	if queryHash != "e769aa130647d2354c40ea6a439bfc08" {
+
+	if queryHash != "b3055c01b4b222b8a47dc12b090e4e64" {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	
+
 	var variables map[string]interface{}
 	if err := json.Unmarshal([]byte(variablesStr), &variables); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	
+
 	userID := variables["id"].(string)
 	after := ""
 	if val, ok := variables["after"]; ok && val != nil {
 		after = val.(string)
 	}
-	
+
 	// Simulate delay
 	if delay := m.getDelay("/graphql/query/" + userID); delay > 0 {
 		time.Sleep(delay)
 	}
-	
+
 	// Check for configured errors
 	if errorCode := m.getErrorResponse("/graphql/query/" + userID); errorCode > 0 {
 		m.sendError(w, errorCode, userID)
 		return
 	}
-	
+
 	// Simulate rate limiting
 	if m.shouldRateLimit() {
 		atomic.AddInt32(&m.rateLimitHits, 1)
@@ -144,14 +144,14 @@ func (m *MockInstagramServer) handleMedia(w http.ResponseWriter, r *http.Request
 		w.WriteHeader(http.StatusTooManyRequests)
 		return
 	}
-	
+
 	// Load appropriate fixture based on pagination
 	fixtureName := fmt.Sprintf("media_%s", userID)
 	if after != "" {
 		fixtureName = fmt.Sprintf("%s_after_%s", fixtureName, after)
 	}
 	fixturePath := filepath.Join(m.fixturesDir, fixtureName+".json")
-	
+
 	data, err := ioutil.ReadFile(fixturePath)
 	if err != nil {
 		// Use default media fixture
@@ -162,12 +162,12 @@ func (m *MockInstagramServer) handleMedia(w http.ResponseWriter, r *http.Request
 			return
 		}
 	}
-	
+
 	// Track checkpoint for testing resume functionality
 	m.mu.Lock()
 	m.checkpoints[userID] = after
 	m.mu.Unlock()
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(data)
 }
@@ -175,32 +175,32 @@ func (m *MockInstagramServer) handleMedia(w http.ResponseWriter, r *http.Request
 // handlePhotoDownload simulates photo CDN downloads
 func (m *MockInstagramServer) handlePhotoDownload(w http.ResponseWriter, r *http.Request) {
 	atomic.AddInt32(&m.requestCount, 1)
-	
+
 	photoID := strings.TrimPrefix(r.URL.Path, "/photos/")
 	photoID = strings.TrimSuffix(photoID, ".jpg")
-	
+
 	// Simulate delay
 	if delay := m.getDelay("/photos/" + photoID); delay > 0 {
 		time.Sleep(delay)
 	}
-	
+
 	// Check for configured errors
 	if errorCode := m.getErrorResponse("/photos/" + photoID); errorCode > 0 {
 		w.WriteHeader(errorCode)
 		return
 	}
-	
+
 	// Simulate rate limiting for downloads
 	if m.shouldRateLimit() {
 		atomic.AddInt32(&m.rateLimitHits, 1)
 		w.WriteHeader(http.StatusTooManyRequests)
 		return
 	}
-	
+
 	// Return a small test image
 	w.Header().Set("Content-Type", "image/jpeg")
 	w.Header().Set("Content-Length", "1024")
-	
+
 	// Create a simple 1KB test image
 	testImage := make([]byte, 1024)
 	for i := range testImage {
@@ -212,12 +212,12 @@ func (m *MockInstagramServer) handlePhotoDownload(w http.ResponseWriter, r *http
 // handleLogin simulates authentication endpoint
 func (m *MockInstagramServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 	atomic.AddInt32(&m.requestCount, 1)
-	
+
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-	
+
 	// Simulate successful login
 	w.Header().Set("Set-Cookie", "sessionid=test_session_id; Path=/; HttpOnly")
 	w.WriteHeader(http.StatusOK)
@@ -234,7 +234,7 @@ func (m *MockInstagramServer) handleLogin(w http.ResponseWriter, r *http.Request
 // sendError sends an error response
 func (m *MockInstagramServer) sendError(w http.ResponseWriter, code int, context string) {
 	w.WriteHeader(code)
-	
+
 	var message string
 	switch code {
 	case http.StatusUnauthorized:
@@ -348,14 +348,14 @@ func (m *MockInstagramServer) SimulateNetworkError(duration time.Duration) {
 	// Close and restart the server after duration
 	m.server.Close()
 	time.Sleep(duration)
-	
+
 	// Recreate server with same handlers
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/users/web_profile_info/", m.handleProfile)
 	mux.HandleFunc("/graphql/query/", m.handleMedia)
 	mux.HandleFunc("/photos/", m.handlePhotoDownload)
 	mux.HandleFunc("/accounts/login/", m.handleLogin)
-	
+
 	m.server = httptest.NewServer(mux)
 }
 

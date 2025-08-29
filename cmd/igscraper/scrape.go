@@ -14,17 +14,23 @@ import (
 	"igscraper/pkg/ui/tui"
 )
 
+// Import root command variables for flag access
+var (
+	_ = sessionID // Reference to avoid unused variable error
+	_ = csrfToken // Reference to avoid unused variable error
+)
+
 var (
 	// Scrape command flags
-	outputDir   string
-	concurrent  int
-	rateLimit   int
-	accountName string
-	maxRetries  int
+	outputDir       string
+	concurrent      int
+	rateLimit       int
+	accountName     string
+	maxRetries      int
 	downloadTimeout int
-	resumeDownload bool
-	forceRestart bool
-	useTUI bool
+	resumeDownload  bool
+	forceRestart    bool
+	useTUI          bool
 )
 
 // scrapeCmd represents the scrape command
@@ -94,7 +100,7 @@ func init() {
 	scrapeCmd.Flags().BoolVar(&resumeDownload, "resume", false, "resume from last checkpoint")
 	scrapeCmd.Flags().BoolVar(&forceRestart, "force-restart", false, "force restart, ignoring existing checkpoint")
 	scrapeCmd.Flags().BoolVar(&useTUI, "tui", false, "use interactive terminal UI with real-time progress")
-	
+
 	// Also add these flags to root command for backward compatibility
 	rootCmd.Flags().StringVarP(&outputDir, "output", "o", "", "output directory for downloads (default: current directory)")
 	rootCmd.Flags().IntVar(&concurrent, "concurrent", 3, "number of concurrent downloads")
@@ -107,12 +113,12 @@ func init() {
 
 func runScrape(cmd *cobra.Command, args []string) {
 	username := strings.TrimSpace(args[0])
-	
+
 	// Set quiet mode if log level is error
 	if logLevel == "error" {
 		ui.SetQuietMode(true)
 	}
-	
+
 	// If TUI is enabled, we'll handle output differently
 	if !useTUI {
 		ui.PrintInfo("Target Profile", username)
@@ -172,8 +178,8 @@ func runScrape(cmd *cobra.Command, args []string) {
 			ui.PrintInfo("Available accounts", "Use 'igscraper auth list' to see stored accounts")
 			os.Exit(1)
 		}
-	} else if cfg.Instagram.SessionID != "" && cfg.Instagram.CSRFToken != "" && 
-			  cfg.Instagram.SessionID != "YOUR_SESSION_ID" && cfg.Instagram.CSRFToken != "YOUR_CSRF_TOKEN" {
+	} else if cfg.Instagram.SessionID != "" && cfg.Instagram.CSRFToken != "" &&
+		cfg.Instagram.SessionID != "YOUR_SESSION_ID" && cfg.Instagram.CSRFToken != "YOUR_CSRF_TOKEN" {
 		// Use credentials from config/env (backward compatibility)
 		logger.Info("Using credentials from configuration")
 	} else {
@@ -203,6 +209,17 @@ func runScrape(cmd *cobra.Command, args []string) {
 		ui.PrintInfo("Using account", account.Username)
 	}
 
+	// Override with command-line flags if provided (for backward compatibility)
+	// Access the global variables defined in root.go
+	if sessionID != "" {
+		cfg.Instagram.SessionID = sessionID
+		logger.Info("Using session ID from command line")
+	}
+	if csrfToken != "" {
+		cfg.Instagram.CSRFToken = csrfToken
+		logger.Info("Using CSRF token from command line")
+	}
+
 	// Final credential validation
 	if cfg.Instagram.SessionID == "" || cfg.Instagram.SessionID == "YOUR_SESSION_ID" {
 		logger.Error("Missing Instagram session ID")
@@ -222,7 +239,7 @@ func runScrape(cmd *cobra.Command, args []string) {
 	if useTUI {
 		// Create TUI
 		terminal := tui.NewTUI(cfg.Download.ConcurrentDownloads)
-		
+
 		// Run scraper in a goroutine
 		scraperDone := make(chan error)
 		go func() {
@@ -231,20 +248,20 @@ func runScrape(cmd *cobra.Command, args []string) {
 				scraperDone <- err
 				return
 			}
-			
+
 			// Set the TUI on the scraper
 			s.SetTUI(terminal)
-			
+
 			err = s.DownloadUserPhotosWithResume(username, resumeDownload, forceRestart)
 			scraperDone <- err
 		}()
-		
+
 		// Run TUI in main thread
 		tuiDone := make(chan error)
 		go func() {
 			tuiDone <- terminal.Start()
 		}()
-		
+
 		// Wait for either to finish
 		select {
 		case err := <-scraperDone:
@@ -260,12 +277,12 @@ func runScrape(cmd *cobra.Command, args []string) {
 				os.Exit(1)
 			}
 		}
-		
+
 		logger.WithField("username", username).Info("Extraction completed successfully")
 	} else {
 		// Original non-TUI flow
 		ui.PrintHighlight("[INITIATING EXTRACTION SEQUENCE]")
-		
+
 		s, err := scraper.New(cfg)
 		if err != nil {
 			ui.PrintError("Failed to initialize scraper", err.Error())
@@ -300,7 +317,7 @@ func init() {
 		// Otherwise show help
 		return cmd.Help()
 	}
-	
+
 	// Set Args to allow arbitrary arguments
 	rootCmd.Args = cobra.ArbitraryArgs
 }

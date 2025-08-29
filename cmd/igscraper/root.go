@@ -23,6 +23,8 @@ var (
 	quiet         bool
 	progressOnly  bool
 	verbose       bool
+	sessionID     string
+	csrfToken     string
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -72,19 +74,19 @@ For more information and examples, visit: https://github.com/marcusziade/igscrap
 		if !verbose && !quiet {
 			progressOnly = true
 		}
-		
+
 		// Set quiet mode if requested or log level is error
 		if quiet || logLevel == "error" {
 			ui.SetQuietMode(true)
 		}
-		
+
 		// Set progress-only mode
 		if progressOnly {
 			ui.SetProgressOnlyMode(true)
 			// Also set log level to error to suppress logs
 			logLevel = "error"
 		}
-		
+
 		// Don't show logo for certain commands
 		if cmd.Name() != "version" && cmd.Name() != "help" && cmd.Name() != "completion" {
 			ui.PrintLogo()
@@ -109,6 +111,10 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&quiet, "quiet", "q", false, "suppress all output except errors")
 	rootCmd.PersistentFlags().BoolVarP(&progressOnly, "progress", "p", false, "show only progress bar and essential info")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "show all output (logo, logs, progress)")
+
+	// Credential flags (for backward compatibility with direct usage)
+	rootCmd.PersistentFlags().StringVar(&sessionID, "session-id", "", "Instagram session ID")
+	rootCmd.PersistentFlags().StringVar(&csrfToken, "csrf-token", "", "Instagram CSRF token")
 
 	// Version template
 	rootCmd.SetVersionTemplate(`Instagram Scraper {{.Version}}

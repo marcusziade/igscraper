@@ -3,7 +3,10 @@ package scraper
 import (
 	"bytes"
 	"fmt"
+	"io"
+	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -38,13 +41,9 @@ type Scraper struct {
 
 // New creates a new Scraper instance
 func New(cfg *config.Config) (*Scraper, error) {
-	// Get logger
 	log := logger.GetLogger()
-	
-	// Create Instagram client with retry configuration
 	client := instagram.NewClientWithConfig(cfg.Download.DownloadTimeout, &cfg.Retry, log)
-	
-	// Build cookie string with all necessary cookies
+
 	var cookies []string
 	if cfg.Instagram.SessionID != "" {
 		cookies = append(cookies, fmt.Sprintf("sessionid=%s", cfg.Instagram.SessionID))
@@ -52,17 +51,13 @@ func New(cfg *config.Config) (*Scraper, error) {
 	if cfg.Instagram.CSRFToken != "" {
 		cookies = append(cookies, fmt.Sprintf("csrftoken=%s", cfg.Instagram.CSRFToken))
 		client.SetHeader("x-csrftoken", cfg.Instagram.CSRFToken)
+		client.SetHeader("X-CSRFToken", cfg.Instagram.CSRFToken)
 	}
-	
-	// Add other required cookies for Instagram
-	cookies = append(cookies, "ig_did=B989A751-1974-4530-B367-030C95169F23")
-	cookies = append(cookies, "mid=Z5NxAAAEAAHNiER_fWDXTvFWFM3t")
-	cookies = append(cookies, "ds_user_id=192008031")
-	
+
 	if len(cookies) > 0 {
 		client.SetHeader("Cookie", strings.Join(cookies, "; "))
 	}
-	
+
 	if cfg.Instagram.UserAgent != "" {
 		client.SetHeader("User-Agent", cfg.Instagram.UserAgent)
 	}
@@ -118,7 +113,7 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 	} else {
 		s.tui.LogInfo("Initiating extraction sequence for user: %s", username)
 	}
-	
+
 	// Initialize checkpoint manager
 	checkpointMgr, err := checkpoint.NewManager(username)
 	if err != nil {
@@ -126,7 +121,7 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 		return fmt.Errorf("failed to create checkpoint manager: %w", err)
 	}
 	s.checkpointMgr = checkpointMgr
-	
+
 	// Handle checkpoint logic
 	var cp *checkpoint.Checkpoint
 	if forceRestart && checkpointMgr.Exists() {
@@ -163,28 +158,28 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 			return fmt.Errorf("checkpoint exists - use --resume to continue or --force-restart to start fresh")
 		}
 	}
-	
+
 	// Log the start of download process
 	s.logger.InfoWithFields("Starting photo download for user", map[string]interface{}{
 		"username": username,
 		"action":   "download_start",
 		"resume":   resume && cp != nil,
 	})
-	
+
 	// Setup output directory
 	outputDir := s.getOutputDir(username)
 	s.logger.DebugWithFields("Setting up output directory", map[string]interface{}{
 		"username":   username,
 		"output_dir": outputDir,
 	})
-	
+
 	storageManager, err := storage.NewManager(outputDir)
 	if err != nil {
 		s.logger.WithError(err).WithField("username", username).Error("Failed to create storage manager")
 		return fmt.Errorf("failed to create storage manager: %w", err)
 	}
 	s.storageManager = storageManager
-	
+
 	// Create worker pool for concurrent downloads
 	workerPool := downloader.NewWorkerPool(
 		s.config.Download.ConcurrentDownloads,
@@ -194,7 +189,7 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 		s.logger,
 	)
 	workerPool.Start()
-	
+
 	// Start result processor goroutine
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -202,7 +197,7 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 		defer wg.Done()
 		s.processDownloadResults(workerPool.Results(), username)
 	}()
-	
+
 	// Get initial user data or use from checkpoint
 	var userID string
 	var totalPhotos int
@@ -218,22 +213,22 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 		s.logger.DebugWithFields("Fetching user info", map[string]interface{}{
 			"username": username,
 		})
-		
+
 		userID, totalPhotos, err = s.getUserInfo(username)
 		if err != nil {
 			s.logger.WithError(err).WithField("username", username).Error("Failed to get user info")
 			return fmt.Errorf("failed to get user info: %w", err)
 		}
-		
+
 		s.logger.InfoWithFields("Successfully fetched user info", map[string]interface{}{
 			"username":     username,
 			"user_id":      userID,
 			"total_photos": totalPhotos,
 		})
-		
+
 		// Initialize metadata collection
 		s.storageManager.InitializeUserMetadata(username, userID, totalPhotos)
-		
+
 		// Create new checkpoint if needed
 		if cp == nil {
 			cp, err = checkpointMgr.Create(username, userID)
@@ -248,7 +243,7 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 			}
 		}
 	}
-	
+
 	// Initialize progress display if not using TUI
 	if s.tui == nil {
 		debugMode := strings.ToLower(s.config.Logging.Level) == "debug"
@@ -262,7 +257,7 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 	endCursor := ""
 	totalQueued := 0
 	pageNum := 0
-	
+
 	// Resume from checkpoint if available
 	if cp != nil && cp.EndCursor != "" {
 		endCursor = cp.EndCursor
@@ -285,7 +280,7 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 				"username":      username,
 				"cooldown_time": "1 hour",
 			})
-			
+
 			if s.tui != nil {
 				// Update rate limit in TUI
 				resetTime := time.Now().Add(time.Hour)
@@ -297,9 +292,9 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 				s.notifier.SendNotification("RATE LIMIT", "Cooling down for 1 hour...")
 				ui.PrintWarning("\n[COOLING DOWN FOR 1 HOUR]\n")
 			}
-			
+
 			s.rateLimiter.Wait()
-			
+
 			s.logger.Info("Rate limit cooldown completed, resuming")
 			if s.tui != nil {
 				s.tui.LogInfo("Rate limit cooldown completed, resuming")
@@ -315,25 +310,25 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 			"user_id":    userID,
 			"end_cursor": endCursor,
 		})
-		
+
 		media, pageInfo, err := s.fetchMediaBatch(username, userID, endCursor)
 		if err != nil {
 			s.logger.WithError(err).WithFields(map[string]interface{}{
 				"username":   username,
 				"end_cursor": endCursor,
 			}).Error("Error fetching media batch")
-			
+
 			ui.PrintError("\nError fetching media: %v. Retrying...\n", err)
 			time.Sleep(retryDelay)
 			continue
 		}
-		
+
 		s.logger.InfoWithFields("Media batch fetched successfully", map[string]interface{}{
 			"username":    username,
 			"media_count": len(media),
 			"has_next":    pageInfo.HasNextPage,
 		})
-		
+
 		// Update total photos if we didn't have it before (from checkpoint)
 		if s.progress != nil && totalPhotos == -1 {
 			// Get total from first API call
@@ -352,13 +347,13 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 		for _, edge := range media {
 			if edge.Node.IsVideo {
 				s.logger.DebugWithFields("Skipping video", map[string]interface{}{
-					"username":  username,
-					"shortcode": edge.Node.Shortcode,
+					"username":   username,
+					"shortcode":  edge.Node.Shortcode,
 					"media_type": "video",
 				})
 				continue
 			}
-			
+
 			// Skip if already downloaded (from checkpoint)
 			if cp != nil && cp.IsPhotoDownloaded(edge.Node.Shortcode) {
 				s.logger.DebugWithFields("Skipping already downloaded photo", map[string]interface{}{
@@ -375,7 +370,7 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 				Username:  username,
 				Node:      &edge.Node,
 			}
-			
+
 			err := workerPool.Submit(job)
 			if err != nil {
 				s.logger.WithError(err).WithFields(map[string]interface{}{
@@ -384,7 +379,7 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 				}).Error("Failed to submit download job")
 				continue
 			}
-			
+
 			// Notify about new download
 			if s.tui != nil {
 				// Estimate size (we don't have actual size until download starts)
@@ -393,13 +388,13 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 			} else if s.progress != nil {
 				s.progress.StartDownload(edge.Node.Shortcode)
 			}
-			
+
 			totalQueued++
 			s.logger.DebugWithFields("Download job queued", map[string]interface{}{
-				"username":      username,
-				"shortcode":     edge.Node.Shortcode,
-				"queue_size":    workerPool.GetQueueSize(),
-				"total_queued":  totalQueued,
+				"username":     username,
+				"shortcode":    edge.Node.Shortcode,
+				"queue_size":   workerPool.GetQueueSize(),
+				"total_queued": totalQueued,
 			})
 		}
 
@@ -411,13 +406,13 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 				s.logger.WithError(err).Warn("Failed to update checkpoint progress")
 			}
 		}
-		
+
 		// Handle pagination
 		if pageInfo.HasNextPage {
 			endCursor = pageInfo.EndCursor
 			s.logger.DebugWithFields("Moving to next page", map[string]interface{}{
-				"username":    username,
-				"end_cursor":  endCursor,
+				"username":   username,
+				"end_cursor": endCursor,
 			})
 		} else {
 			hasMore = false
@@ -432,11 +427,11 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 		"username":     username,
 		"total_queued": totalQueued,
 	})
-	
+
 	// Stop the worker pool and wait for result processor
 	workerPool.Stop()
 	wg.Wait()
-	
+
 	// Save all collected metadata to a single JSON file
 	if err := s.storageManager.SaveUserMetadata(); err != nil {
 		s.logger.WithError(err).Error("Failed to save metadata file")
@@ -446,11 +441,11 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 	}
 
 	s.logger.InfoWithFields("Photo download completed successfully", map[string]interface{}{
-		"username":        username,
+		"username":         username,
 		"total_downloaded": s.tracker.GetDownloadedCount(),
-		"action":          "download_complete",
+		"action":           "download_complete",
 	})
-	
+
 	// Delete checkpoint on successful completion
 	if s.checkpointMgr != nil && s.checkpointMgr.Exists() {
 		if err := s.checkpointMgr.Delete(); err != nil {
@@ -459,7 +454,7 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 			s.logger.Info("Checkpoint deleted after successful completion")
 		}
 	}
-	
+
 	if s.tui == nil {
 		if s.progress != nil {
 			s.progress.Complete()
@@ -475,12 +470,12 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 // getUserInfo fetches the user ID and total photo count for the given username
 func (s *Scraper) getUserInfo(username string) (string, int, error) {
 	endpoint := fmt.Sprintf("https://www.instagram.com/api/v1/users/web_profile_info/?username=%s", username)
-	
+
 	s.logger.DebugWithFields("Making API request for user info", map[string]interface{}{
 		"username": username,
 		"endpoint": endpoint,
 	})
-	
+
 	var result instagram.InstagramResponse
 	err := s.client.GetJSON(endpoint, &result)
 	if err != nil {
@@ -496,13 +491,13 @@ func (s *Scraper) getUserInfo(username string) (string, int, error) {
 	}
 
 	photoCount := result.Data.User.EdgeOwnerToTimelineMedia.Count
-	
+
 	s.logger.DebugWithFields("Successfully fetched user info", map[string]interface{}{
 		"username":    username,
 		"user_id":     result.Data.User.ID,
 		"photo_count": photoCount,
 	})
-	
+
 	return result.Data.User.ID, photoCount, nil
 }
 
@@ -512,37 +507,193 @@ func (s *Scraper) getUserID(username string) (string, error) {
 	return userID, err
 }
 
+// fetchMediaBatchFallback fetches media using web scraping as fallback
+func (s *Scraper) fetchMediaBatchFallback(username, userID, endCursor string) ([]instagram.Edge, instagram.PageInfo, error) {
+	s.logger.InfoWithFields("Attempting fallback media fetch using web scraping", map[string]interface{}{
+		"username": username,
+		"user_id":  userID,
+	})
+
+	// Try to scrape Instagram's web page
+	profileURL := fmt.Sprintf("https://www.instagram.com/%s/", username)
+
+	resp, err := s.client.Get(profileURL)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to fetch profile page")
+		return nil, instagram.PageInfo{}, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to read profile page")
+		return nil, instagram.PageInfo{}, err
+	}
+
+	// Save HTML for debugging (temporary)
+	if err := os.WriteFile("/tmp/instagram_debug.html", body, 0644); err != nil {
+		s.logger.WithError(err).Warn("Failed to save debug HTML")
+	}
+
+	// Try to extract media URLs from the HTML
+	mediaURLs := s.extractMediaFromHTML(string(body))
+
+	if len(mediaURLs) == 0 {
+		s.logger.Warn("No media URLs found in HTML")
+		return []instagram.Edge{}, instagram.PageInfo{HasNextPage: false}, nil
+	}
+
+	// Convert URLs to Edge format
+	var edges []instagram.Edge
+	for i, url := range mediaURLs {
+		if i >= 12 { // Limit to first 12 items for this fallback
+			break
+		}
+
+		edge := instagram.Edge{
+			Node: instagram.Node{
+				ID:                    fmt.Sprintf("fallback_%d", i),
+				Shortcode:             fmt.Sprintf("fallback_%d", i),
+				DisplayURL:            url,
+				IsVideo:               false, // Assume photos for now
+				TakenAtTimestamp:      time.Now().Unix(),
+				Dimensions:            instagram.MediaDimensions{Width: 1080, Height: 1080},
+				EdgeMediaToCaption:    instagram.EdgeMediaToCaption{},
+				EdgeLikedBy:           instagram.EdgeLikedBy{Count: 0},
+				EdgeMediaToComment:    instagram.EdgeMediaToComment{Count: 0},
+				EdgeMediaToTaggedUser: instagram.EdgeMediaToTaggedUser{},
+			},
+		}
+		edges = append(edges, edge)
+	}
+
+	s.logger.InfoWithFields("Successfully extracted media from HTML", map[string]interface{}{
+		"username":    username,
+		"media_count": len(edges),
+	})
+
+	return edges, instagram.PageInfo{HasNextPage: false}, nil
+}
+
+// extractMediaFromHTML extracts media URLs from Instagram's HTML
+func (s *Scraper) extractMediaFromHTML(html string) []string {
+	var urls []string
+
+	// Try multiple patterns to find image URLs
+	patterns := []string{
+		`"display_url":"([^"]+)"`,                   // Standard GraphQL format
+		`"thumbnail_src":"([^"]+)"`,                 // Thumbnail format
+		`src="([^"]+\.jpg[^"]*)`,                    // Direct img src
+		`srcset="([^"]+\.jpg[^"]*)`,                 // Srcset format
+		`"url":"([^"]+\.jpg[^"]*)`,                  // URL format
+		`background-image:url\(([^)]+\.jpg[^)]*)\)`, // CSS background
+	}
+
+	for _, pattern := range patterns {
+		regex := regexp.MustCompile(pattern)
+		matches := regex.FindAllStringSubmatch(html, -1)
+
+		for _, match := range matches {
+			if len(match) > 1 {
+				url := strings.ReplaceAll(match[1], "\\u0026", "&")
+				// Clean up the URL
+				url = strings.Split(url, " ")[0] // Remove srcset extras
+				url = strings.Trim(url, "'\"")   // Remove quotes
+
+				// Only include JPG images
+				if strings.Contains(url, ".jpg") && !strings.Contains(url, "s150x150") {
+					urls = append(urls, url)
+				}
+			}
+		}
+	}
+
+	// Also try to find JSON data in script tags
+	jsonRegex := regexp.MustCompile(`<script[^>]*>.*?({.*?"require".*?}).*?</script>`)
+	jsonMatches := jsonRegex.FindAllStringSubmatch(html, -1)
+
+	for _, jsonMatch := range jsonMatches {
+		if len(jsonMatch) > 1 {
+			// Look for media URLs in the JSON
+			mediaPatterns := []string{
+				`"display_url":"([^"]+)"`,
+				`"thumbnail_src":"([^"]+)"`,
+				`"url":"([^"]+\.jpg[^"]*)"`,
+			}
+
+			for _, pattern := range mediaPatterns {
+				regex := regexp.MustCompile(pattern)
+				matches := regex.FindAllStringSubmatch(jsonMatch[1], -1)
+
+				for _, match := range matches {
+					if len(match) > 1 {
+						url := strings.ReplaceAll(match[1], "\\u0026", "&")
+						if strings.Contains(url, ".jpg") {
+							urls = append(urls, url)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Remove duplicates and filter
+	seen := make(map[string]bool)
+	var unique []string
+	for _, url := range urls {
+		// Skip small thumbnails and profile pictures
+		if !seen[url] &&
+			!strings.Contains(url, "s150x150") &&
+			!strings.Contains(url, "s320x320") &&
+			strings.Contains(url, ".jpg") {
+			seen[url] = true
+			unique = append(unique, url)
+		}
+	}
+
+	s.logger.DebugWithFields("HTML parsing results", map[string]interface{}{
+		"total_urls_found": len(urls),
+		"unique_urls":      len(unique),
+	})
+
+	return unique
+}
+
 // fetchMediaBatch fetches a batch of media items
 func (s *Scraper) fetchMediaBatch(username, userID, endCursor string) ([]instagram.Edge, instagram.PageInfo, error) {
-	// Always use the media endpoint with the user ID
-	variables := fmt.Sprintf(`{"id":"%s","first":50,"after":"%s"}`, userID, endCursor)
-	endpoint := fmt.Sprintf("https://www.instagram.com/graphql/query/?query_hash=%s&variables=%s", instagram.MediaQueryHash, variables)
-	
 	s.logger.DebugWithFields("Fetching media batch", map[string]interface{}{
 		"username":   username,
 		"user_id":    userID,
 		"end_cursor": endCursor,
-		"endpoint":   endpoint,
 	})
 
-	var result instagram.InstagramResponse
-	err := s.client.GetJSON(endpoint, &result)
+	result, err := s.client.FetchUserMedia(userID, endCursor)
 	if err != nil {
 		s.logger.WithError(err).WithFields(map[string]interface{}{
 			"username":   username,
 			"end_cursor": endCursor,
 		}).Error("Failed to fetch media batch")
-		return nil, instagram.PageInfo{}, fmt.Errorf("failed to fetch media: %w", err)
+		return s.fetchMediaBatchFallback(username, userID, endCursor)
 	}
 
+	s.logger.DebugWithFields("Media batch response", map[string]interface{}{
+		"username":       username,
+		"has_data":       result.Data.User.ID != "",
+		"media_count":    len(result.Data.User.EdgeOwnerToTimelineMedia.Edges),
+		"total_count":    result.Data.User.EdgeOwnerToTimelineMedia.Count,
+		"has_next_page":  result.Data.User.EdgeOwnerToTimelineMedia.PageInfo.HasNextPage,
+		"requires_login": result.RequiresToLogin,
+		"status":         result.Status,
+	})
+
 	media := result.Data.User.EdgeOwnerToTimelineMedia
-	
+
 	s.logger.DebugWithFields("Media batch fetched", map[string]interface{}{
 		"username":      username,
 		"media_count":   len(media.Edges),
 		"has_next_page": media.PageInfo.HasNextPage,
 	})
-	
+
 	return media.Edges, media.PageInfo, nil
 }
 
@@ -551,7 +702,7 @@ func (s *Scraper) processDownloadResults(results <-chan downloader.DownloadResul
 	for result := range results {
 		if result.Success {
 			logger.LogDownload(username, result.Job.Shortcode, "photo", true, nil)
-			
+
 			// Extract metadata for progress display
 			var metadata map[string]interface{}
 			if result.Job.Node != nil {
@@ -562,7 +713,7 @@ func (s *Scraper) processDownloadResults(results <-chan downloader.DownloadResul
 				metadata["likes"] = result.Job.Node.EdgeLikedBy.Count
 				metadata["comments"] = result.Job.Node.EdgeMediaToComment.Count
 			}
-			
+
 			if s.tui != nil {
 				// Complete the download in TUI
 				s.tui.CompleteDownload(result.Job.Shortcode)
@@ -574,7 +725,7 @@ func (s *Scraper) processDownloadResults(results <-chan downloader.DownloadResul
 				s.tracker.IncrementDownloaded()
 				s.tracker.PrintProgress()
 			}
-			
+
 			// Record successful download in checkpoint
 			if s.checkpointMgr != nil {
 				// Load current checkpoint to get latest state
@@ -586,7 +737,7 @@ func (s *Scraper) processDownloadResults(results <-chan downloader.DownloadResul
 					}
 				}
 			}
-			
+
 			s.logger.DebugWithFields("Download completed successfully", map[string]interface{}{
 				"username":  username,
 				"shortcode": result.Job.Shortcode,
@@ -595,7 +746,7 @@ func (s *Scraper) processDownloadResults(results <-chan downloader.DownloadResul
 			})
 		} else {
 			logger.LogDownload(username, result.Job.Shortcode, "photo", false, result.Error)
-			
+
 			if s.tui != nil {
 				// Fail the download in TUI
 				s.tui.FailDownload(result.Job.Shortcode, result.Error)
@@ -606,7 +757,7 @@ func (s *Scraper) processDownloadResults(results <-chan downloader.DownloadResul
 				// Use regular error printing
 				ui.PrintError("\nError downloading %s: %v\n", result.Job.Shortcode, result.Error)
 			}
-			
+
 			s.logger.ErrorWithFields("Download failed", map[string]interface{}{
 				"username":  username,
 				"shortcode": result.Job.Shortcode,
@@ -623,7 +774,7 @@ func (s *Scraper) downloadPhoto(url, shortcode string) error {
 		"shortcode": shortcode,
 		"url":       url,
 	})
-	
+
 	start := time.Now()
 	data, err := s.client.DownloadPhoto(url)
 	if err != nil {
@@ -633,12 +784,12 @@ func (s *Scraper) downloadPhoto(url, shortcode string) error {
 		}).Error("Failed to download photo")
 		return fmt.Errorf("failed to download photo: %w", err)
 	}
-	
+
 	downloadDuration := time.Since(start)
 	s.logger.DebugWithFields("Photo downloaded", map[string]interface{}{
-		"shortcode":    shortcode,
-		"size_bytes":   len(data),
-		"duration_ms":  downloadDuration.Milliseconds(),
+		"shortcode":   shortcode,
+		"size_bytes":  len(data),
+		"duration_ms": downloadDuration.Milliseconds(),
 	})
 
 	// SavePhoto expects shortcode, not filename
@@ -647,11 +798,11 @@ func (s *Scraper) downloadPhoto(url, shortcode string) error {
 		s.logger.WithError(err).WithField("shortcode", shortcode).Error("Failed to save photo")
 		return err
 	}
-	
+
 	s.logger.DebugWithFields("Photo saved successfully", map[string]interface{}{
 		"shortcode": shortcode,
 	})
-	
+
 	return nil
 }
 
@@ -661,16 +812,16 @@ func (s *Scraper) generateFilename(shortcode string) string {
 	if pattern == "" {
 		pattern = "{shortcode}.jpg"
 	}
-	
+
 	// Replace placeholders
 	filename := strings.ReplaceAll(pattern, "{shortcode}", shortcode)
 	filename = strings.ReplaceAll(filename, "{timestamp}", fmt.Sprintf("%d", time.Now().Unix()))
 	filename = strings.ReplaceAll(filename, "{date}", time.Now().Format("2006-01-02"))
-	
+
 	// Ensure proper extension
 	if !strings.Contains(filename, ".") {
 		filename += ".jpg"
 	}
-	
+
 	return filename
 }

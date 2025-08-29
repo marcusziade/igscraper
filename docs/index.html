@@ -32,6 +32,19 @@
         </div>
     </nav>
 
+    <!-- Critical Warning Banner -->
+    <div class="warning-banner">
+        <div class="container">
+            <div class="warning-content">
+                <div class="warning-icon">⚠️</div>
+                <div class="warning-text">
+                    <h3>Currently Non-Functional - Instagram API Changes (August 2025)</h3>
+                    <p>Instagram has updated their security measures, blocking automated access. While authentication appears to work, the actual photo downloading is blocked with 401 errors. This affects all Instagram scrapers, not just IGScraper. <a href="https://github.com/marcusziade/igscraper#current-status" target="_blank">Learn more →</a></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Hero Section -->
     <section class="hero">
         <div class="container">
@@ -47,13 +60,13 @@
                     
                     <!-- Quick Start -->
                     <div class="quick-start">
-                        <h3>Quick Start</h3>
+                        <h3>Quick Start <span style="color: #dc322f; font-size: 14px;">(Currently Blocked by Instagram)</span></h3>
                         <div class="code-block compact">
                             <pre><code><span class="comment"># Install with Homebrew</span>
 brew tap guitaripod/tap
 brew install igscraper
 
-<span class="comment"># Run</span>
+<span class="comment"># Run (will fail with 401 errors)</span>
 igscraper username</code></pre>
                         </div>
                     </div>
@@ -132,6 +145,7 @@ igscraper username</code></pre>
             <div class="features-header">
                 <h2 class="section-title">Why IGScraper?</h2>
                 <p class="section-subtitle">Built for nerds who need reliable Instagram data extraction</p>
+                <p style="color: #dc322f; margin-top: 10px; font-weight: 600;">⚠️ Note: Currently blocked by Instagram's August 2025 API changes</p>
             </div>
             <div class="features-grid compact">
                 <div class="feature-card compact">

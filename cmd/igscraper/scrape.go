@@ -292,7 +292,23 @@ func runScrape(cmd *cobra.Command, args []string) {
 		err = s.DownloadUserPhotosWithResume(username, resumeDownload, forceRestart)
 		if err != nil {
 			logger.WithError(err).WithField("username", username).Error("Extraction failed")
-			ui.PrintError("EXTRACTION FAILED", err.Error())
+
+			// Provide better error messages for common issues
+			if strings.Contains(err.Error(), "session expired") || strings.Contains(err.Error(), "302") {
+				ui.PrintError("SESSION EXPIRED", "Your Instagram session has expired or is invalid.")
+				fmt.Println("\nTo fix this issue:")
+				fmt.Println("1. Log into Instagram in your browser")
+				fmt.Println("2. Get fresh cookies: igscraper auth login")
+				fmt.Println("3. Try again: igscraper scrape", username)
+			} else if strings.Contains(err.Error(), "401") || strings.Contains(err.Error(), "authentication") {
+				ui.PrintError("AUTHENTICATION FAILED", "Instagram is blocking requests from this session.")
+				fmt.Println("\nThis usually happens when:")
+				fmt.Println("• You've made too many requests (rate limited)")
+				fmt.Println("• The session cookies have expired")
+				fmt.Println("\nTry again in a few hours, or use different credentials.")
+			} else {
+				ui.PrintError("EXTRACTION FAILED", err.Error())
+			}
 			os.Exit(1)
 		}
 

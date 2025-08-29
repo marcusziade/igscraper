@@ -257,6 +257,8 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 	endCursor := ""
 	totalQueued := 0
 	pageNum := 0
+	consecutiveErrors := 0
+	maxConsecutiveErrors := 5
 
 	// Resume from checkpoint if available
 	if cp != nil && cp.EndCursor != "" {
@@ -318,10 +320,34 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 				"end_cursor": endCursor,
 			}).Error("Error fetching media batch")
 
-			ui.PrintError("\nError fetching media: %v. Retrying...\n", err)
-			time.Sleep(retryDelay)
+			consecutiveErrors++
+
+			// Check if it's an authentication error (401) or rate limit
+			if errStr := err.Error(); strings.Contains(errStr, "401") || strings.Contains(errStr, "auth") {
+				s.logger.Error("Authentication failed - session may be expired or rate limited")
+				if consecutiveErrors >= 3 {
+					ui.PrintError("Authentication Failed", "Session expired or rate limited. Please wait a few hours or use fresh credentials.")
+					break
+				}
+				ui.PrintWarning("Auth Error", fmt.Sprintf("Attempt %d/%d - Instagram may be rate limiting", consecutiveErrors, maxConsecutiveErrors))
+			}
+
+			// Stop after too many consecutive errors
+			if consecutiveErrors >= maxConsecutiveErrors {
+				s.logger.Error("Max consecutive errors exceeded")
+				ui.PrintError("Too Many Errors", fmt.Sprintf("Failed after %d consecutive attempts. Instagram may be blocking requests.", maxConsecutiveErrors))
+				break
+			}
+
+			// Exponential backoff
+			backoffDelay := time.Duration(consecutiveErrors) * retryDelay
+			ui.PrintWarning("Retrying", fmt.Sprintf("Attempt %d/%d - waiting %v before retry", consecutiveErrors, maxConsecutiveErrors, backoffDelay))
+			time.Sleep(backoffDelay)
 			continue
 		}
+
+		// Reset error count on success
+		consecutiveErrors = 0
 
 		s.logger.InfoWithFields("Media batch fetched successfully", map[string]interface{}{
 			"username":    username,

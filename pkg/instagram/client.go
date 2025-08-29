@@ -252,6 +252,19 @@ func (c *Client) GetJSON(url string, target interface{}) error {
 	}
 	defer resp.Body.Close()
 
+	// Check for redirect (302) which means authentication is required
+	if resp.StatusCode == 302 || resp.StatusCode == 301 {
+		c.logger.WarnWithFields("Instagram requires authentication", map[string]interface{}{
+			"url":    url,
+			"status": resp.StatusCode,
+		})
+		return &errors.Error{
+			Type:    errors.ErrorTypeAuth,
+			Message: "Instagram session expired or invalid. Please login again with fresh credentials.",
+			Code:    resp.StatusCode,
+		}
+	}
+
 	// Check status code
 	if err := c.checkResponseStatus(resp); err != nil {
 		return err

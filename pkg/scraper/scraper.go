@@ -214,10 +214,44 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 			"username": username,
 		})
 
-		userID, totalPhotos, err = s.getUserInfo(username)
-		if err != nil {
-			s.logger.WithError(err).WithField("username", username).Error("Failed to get user info")
-			return fmt.Errorf("failed to get user info: %w", err)
+		// Keep trying to get user info until successful
+		for {
+			userID, totalPhotos, err = s.getUserInfo(username)
+			if err == nil {
+				break
+			}
+
+			s.logger.WithError(err).WithField("username", username).Error("Failed to get user info - will retry")
+
+			var waitTime time.Duration
+			errStr := err.Error()
+			if strings.Contains(errStr, "401") || strings.Contains(errStr, "auth") || strings.Contains(errStr, "302") {
+				waitTime = 30 * time.Minute
+				ui.PrintWarning("Authentication Issue", fmt.Sprintf("Instagram requires authentication. Waiting %v before retry", waitTime))
+				ui.PrintInfo("Persistent Mode", "The scraper will keep retrying until successful. Press Ctrl+C to stop.")
+			} else {
+				waitTime = 5 * time.Minute
+				ui.PrintWarning("Failed to Get Profile", fmt.Sprintf("Waiting %v before retry", waitTime))
+			}
+
+			// Show countdown
+			ticker := time.NewTicker(5 * time.Minute)
+			timer := time.NewTimer(waitTime)
+			remainingTime := waitTime
+
+			for {
+				select {
+				case <-ticker.C:
+					remainingTime -= 5 * time.Minute
+					if remainingTime > 0 {
+						ui.PrintInfo("Waiting", fmt.Sprintf("%v remaining before retry", remainingTime))
+					}
+				case <-timer.C:
+					ticker.Stop()
+					goto retryUserInfo
+				}
+			}
+		retryUserInfo:
 		}
 
 		s.logger.InfoWithFields("Successfully fetched user info", map[string]interface{}{
@@ -258,7 +292,6 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 	totalQueued := 0
 	pageNum := 0
 	consecutiveErrors := 0
-	maxConsecutiveErrors := 5
 
 	// Resume from checkpoint if available
 	if cp != nil && cp.EndCursor != "" {
@@ -322,27 +355,58 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 
 			consecutiveErrors++
 
-			// Check if it's an authentication error (401) or rate limit
-			if errStr := err.Error(); strings.Contains(errStr, "401") || strings.Contains(errStr, "auth") {
-				s.logger.Error("Authentication failed - session may be expired or rate limited")
-				if consecutiveErrors >= 3 {
-					ui.PrintError("Authentication Failed", "Session expired or rate limited. Please wait a few hours or use fresh credentials.")
-					break
+			// Determine wait time based on error type
+			var waitTime time.Duration
+			errStr := err.Error()
+
+			if strings.Contains(errStr, "401") || strings.Contains(errStr, "auth") || strings.Contains(errStr, "302") {
+				// Authentication/rate limit error - wait longer
+				waitTime = time.Duration(30+consecutiveErrors*30) * time.Minute
+				s.logger.Info("Rate limited - will wait and retry")
+				ui.PrintWarning("Rate Limited", fmt.Sprintf("Instagram is blocking requests. Waiting %v before retry (attempt %d)", waitTime, consecutiveErrors))
+			} else if strings.Contains(errStr, "429") {
+				// Explicit rate limit - wait even longer
+				waitTime = time.Hour
+				ui.PrintWarning("Rate Limit Hit", fmt.Sprintf("Instagram rate limit detected. Waiting %v before retry", waitTime))
+			} else {
+				// Other errors - shorter backoff
+				waitTime = time.Duration(consecutiveErrors) * retryDelay
+				ui.PrintWarning("Temporary Error", fmt.Sprintf("Waiting %v before retry (attempt %d)", waitTime, consecutiveErrors))
+			}
+
+			// Update progress display with wait status
+			if s.tui != nil {
+				s.tui.LogInfo("Waiting %v due to Instagram restrictions", waitTime)
+			}
+
+			// Wait with periodic status updates
+			ticker := time.NewTicker(time.Minute)
+			timer := time.NewTimer(waitTime)
+			remainingTime := waitTime
+
+			for {
+				select {
+				case <-ticker.C:
+					remainingTime -= time.Minute
+					if remainingTime > 0 {
+						ui.PrintInfo("Still Waiting", fmt.Sprintf("%v remaining before retry", remainingTime))
+					}
+				case <-timer.C:
+					ticker.Stop()
+					goto retry
 				}
-				ui.PrintWarning("Auth Error", fmt.Sprintf("Attempt %d/%d - Instagram may be rate limiting", consecutiveErrors, maxConsecutiveErrors))
+			}
+		retry:
+
+			// Save checkpoint before retry
+			if s.checkpointMgr != nil && cp != nil {
+				cp.EndCursor = endCursor
+				cp.LastProcessedPage = pageNum
+				if err := s.checkpointMgr.Save(cp); err != nil {
+					s.logger.WithError(err).Warn("Failed to save checkpoint before retry")
+				}
 			}
 
-			// Stop after too many consecutive errors
-			if consecutiveErrors >= maxConsecutiveErrors {
-				s.logger.Error("Max consecutive errors exceeded")
-				ui.PrintError("Too Many Errors", fmt.Sprintf("Failed after %d consecutive attempts. Instagram may be blocking requests.", maxConsecutiveErrors))
-				break
-			}
-
-			// Exponential backoff
-			backoffDelay := time.Duration(consecutiveErrors) * retryDelay
-			ui.PrintWarning("Retrying", fmt.Sprintf("Attempt %d/%d - waiting %v before retry", consecutiveErrors, maxConsecutiveErrors, backoffDelay))
-			time.Sleep(backoffDelay)
 			continue
 		}
 

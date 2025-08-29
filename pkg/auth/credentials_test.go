@@ -74,7 +74,7 @@ func TestCredentialManager(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error retrieving deleted account")
 	}
-	
+
 	// Verify mock store state
 	if mockStore.Count() != 0 {
 		t.Errorf("Expected 0 accounts after deletion, got %d", mockStore.Count())
@@ -180,7 +180,7 @@ func TestRealManagerWithEncryptedStore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create encrypted store: %v", err)
 	}
-	
+
 	manager := NewMockManagerWithStores(encryptedStore)
 
 	// Test storing credentials
@@ -260,6 +260,112 @@ func TestMockStore(t *testing.T) {
 	if err == nil || err.Error() != "injected error" {
 		t.Error("Expected injected error")
 	}
+}
+
+func TestKeyringStoreWithIndex(t *testing.T) {
+	// Skip this test if keyring is not available
+	keyringStore, err := NewKeyringStore()
+	if err != nil {
+		t.Skip("Keyring not available:", err)
+	}
+
+	// Clean up any existing test data
+	testUser1 := "test_keyring_user1"
+	testUser2 := "test_keyring_user2"
+	keyringStore.Delete(testUser1)
+	keyringStore.Delete(testUser2)
+
+	// Test empty store
+	accounts, err := keyringStore.List()
+	if err != nil {
+		t.Errorf("Failed to list empty keyring store: %v", err)
+	}
+	if len(accounts) != 0 {
+		t.Errorf("Expected 0 accounts in empty keyring, got %d", len(accounts))
+	}
+
+	// Test storing accounts
+	account1 := &Account{
+		Username:  testUser1,
+		SessionID: "keyring_session1",
+		CSRFToken: "keyring_csrf1",
+	}
+
+	account2 := &Account{
+		Username:  testUser2,
+		SessionID: "keyring_session2",
+		CSRFToken: "keyring_csrf2",
+	}
+
+	// Store first account
+	err = keyringStore.Store(account1)
+	if err != nil {
+		t.Fatalf("Failed to store first account: %v", err)
+	}
+
+	// Store second account
+	err = keyringStore.Store(account2)
+	if err != nil {
+		t.Fatalf("Failed to store second account: %v", err)
+	}
+
+	// Test listing accounts
+	accounts, err = keyringStore.List()
+	if err != nil {
+		t.Errorf("Failed to list keyring accounts: %v", err)
+	}
+	if len(accounts) != 2 {
+		t.Errorf("Expected 2 accounts, got %d", len(accounts))
+	}
+
+	// Verify both accounts are in the list
+	usernames := make(map[string]bool)
+	for _, acc := range accounts {
+		usernames[acc.Username] = true
+		if acc.Username == testUser1 {
+			if acc.SessionID != account1.SessionID {
+				t.Errorf("Account1 session ID mismatch")
+			}
+		} else if acc.Username == testUser2 {
+			if acc.SessionID != account2.SessionID {
+				t.Errorf("Account2 session ID mismatch")
+			}
+		}
+	}
+
+	if !usernames[testUser1] || !usernames[testUser2] {
+		t.Error("Not all expected accounts found in list")
+	}
+
+	// Test retrieving individual accounts
+	retrieved1, err := keyringStore.Retrieve(testUser1)
+	if err != nil {
+		t.Errorf("Failed to retrieve account1: %v", err)
+	}
+	if retrieved1.SessionID != account1.SessionID {
+		t.Errorf("Retrieved account1 session ID mismatch")
+	}
+
+	// Test deleting one account
+	err = keyringStore.Delete(testUser1)
+	if err != nil {
+		t.Errorf("Failed to delete account1: %v", err)
+	}
+
+	// Verify only one account remains
+	accounts, err = keyringStore.List()
+	if err != nil {
+		t.Errorf("Failed to list after deletion: %v", err)
+	}
+	if len(accounts) != 1 {
+		t.Errorf("Expected 1 account after deletion, got %d", len(accounts))
+	}
+	if len(accounts) > 0 && accounts[0].Username != testUser2 {
+		t.Errorf("Expected remaining account to be %s, got %s", testUser2, accounts[0].Username)
+	}
+
+	// Clean up
+	keyringStore.Delete(testUser2)
 }
 
 func contains(data []byte, substr []byte) bool {

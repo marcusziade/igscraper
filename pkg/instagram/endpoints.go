@@ -12,11 +12,20 @@ const (
 	// ProfileEndpoint is the endpoint pattern for user profiles
 	ProfileEndpoint = "/api/v1/users/web_profile_info/"
 
-	// MediaEndpoint is the endpoint pattern for user media
+	// MediaEndpoint is the legacy GraphQL query path (query_hash)
 	MediaEndpoint = "/graphql/query/"
 
-	// MediaQueryHash is the query hash for fetching user media
+	// GraphQLEndpoint is the modern GraphQL path used for doc_id POSTs
+	GraphQLEndpoint = "/graphql/query"
+
+	// MediaQueryHash is the legacy query hash for fetching user media
 	MediaQueryHash = "b3055c01b4b222b8a47dc12b090e4e64"
+
+	// MediaDocIDLoggedIn is the Polaris profile timeline doc_id (session required)
+	MediaDocIDLoggedIn = "7898261790222653"
+
+	// MediaDocIDLoggedOut is the public profile timeline doc_id
+	MediaDocIDLoggedOut = "7950326061742207"
 
 	// DefaultMediaLimit is the default number of media items to fetch per request
 	DefaultMediaLimit = 12

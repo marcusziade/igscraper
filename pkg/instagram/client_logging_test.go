@@ -114,23 +114,30 @@ func TestClientLogging(t *testing.T) {
 
 	t.Run("Auth Error", func(t *testing.T) {
 		resp, err := client.Get(server.URL + "/api/v1/auth/")
-		// Auth errors are not retried, so we expect an error from Get
-		if err == nil {
-			t.Error("Expected auth error from Get")
+		// 401 is returned without retry so the caller can inspect the body
+		if err != nil {
+			t.Errorf("Expected response from Get for 401, got error: %v", err)
 		}
-		if resp != nil {
-			resp.Body.Close()
+		if resp == nil {
+			t.Fatal("Expected non-nil response for 401")
+		}
+		defer resp.Body.Close()
+		if err := client.checkResponseStatus(resp); err == nil {
+			t.Error("Expected auth error from checkResponseStatus")
 		}
 	})
 
 	t.Run("Not Found Error", func(t *testing.T) {
 		resp, err := client.Get(server.URL + "/api/v1/notfound/")
-		// Not found errors are not retried, so we expect an error from Get
-		if err == nil {
-			t.Error("Expected not found error from Get")
+		if err != nil {
+			t.Errorf("Expected response from Get for 404, got error: %v", err)
 		}
-		if resp != nil {
-			resp.Body.Close()
+		if resp == nil {
+			t.Fatal("Expected non-nil response for 404")
+		}
+		defer resp.Body.Close()
+		if err := client.checkResponseStatus(resp); err == nil {
+			t.Error("Expected not found error from checkResponseStatus")
 		}
 	})
 

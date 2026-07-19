@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -397,54 +398,55 @@ func TestFetchUserProfile(t *testing.T) {
 func TestFetchUserMedia(t *testing.T) {
 	log := logger.NewTestLogger()
 	
-	t.Run("successful media fetch", func(t *testing.T) {
-		expectedResponse := &InstagramResponse{
-			Status: "ok",
-			Data: Data{
-				User: User{
-					EdgeOwnerToTimelineMedia: EdgeOwnerToTimelineMedia{
-						Edges: []Edge{
-							{
-								Node: Node{
-									ID:         "media1",
-									Shortcode:  "ABC123",
-									DisplayURL: "https://example.com/photo1.jpg",
-									IsVideo:    false,
-								},
-							},
-						},
-						PageInfo: PageInfo{
-							HasNextPage: true,
-							EndCursor:   "cursor123",
+	t.Run("successful media fetch via feed API", func(t *testing.T) {
+		feedResponse := map[string]interface{}{
+			"status":         "ok",
+			"more_available": true,
+			"next_max_id":    "cursor123",
+			"items": []map[string]interface{}{
+				{
+					"id":   "media1",
+					"code": "ABC123",
+					"image_versions2": map[string]interface{}{
+						"candidates": []map[string]interface{}{
+							{"url": "https://example.com/photo1.jpg", "width": 1080.0, "height": 1080.0},
 						},
 					},
+					"media_type": 1.0,
+					"taken_at":   1700000000.0,
 				},
 			},
 		}
-		
-		// Create a mock HTTP client
+
 		mockClient := newMockHTTPClient(func(req *http.Request) (*http.Response, error) {
-			expectedURL := GetMediaURL("123456", "")
-			if req.URL.String() == expectedURL {
-				responseBody, _ := json.Marshal(expectedResponse)
+			if strings.Contains(req.URL.Path, "/api/v1/feed/user/") {
+				responseBody, _ := json.Marshal(feedResponse)
 				return &http.Response{
 					StatusCode: http.StatusOK,
 					Body:       io.NopCloser(bytes.NewReader(responseBody)),
 					Header:     make(http.Header),
+					Request:    req,
 				}, nil
 			}
-			return newResponse(http.StatusBadRequest, ""), nil
+			return &http.Response{
+				StatusCode: http.StatusNotFound,
+				Body:       io.NopCloser(bytes.NewReader([]byte(`{"status":"fail"}`))),
+				Header:     make(http.Header),
+				Request:    req,
+			}, nil
 		})
-		
-		// Create client with mock HTTP client
+
 		client := NewClient(30*time.Second, log)
 		client.httpClient = mockClient
-		
+
 		result, err := client.FetchUserMedia("123456", "")
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.Len(t, result.Data.User.EdgeOwnerToTimelineMedia.Edges, 1)
 		assert.Equal(t, "ABC123", result.Data.User.EdgeOwnerToTimelineMedia.Edges[0].Node.Shortcode)
+		assert.Equal(t, "https://example.com/photo1.jpg", result.Data.User.EdgeOwnerToTimelineMedia.Edges[0].Node.DisplayURL)
+		assert.True(t, result.Data.User.EdgeOwnerToTimelineMedia.PageInfo.HasNextPage)
+		assert.Equal(t, "cursor123", result.Data.User.EdgeOwnerToTimelineMedia.PageInfo.EndCursor)
 	})
 }
 
@@ -550,6 +552,7 @@ func TestDoRequestWithRetry(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			attempts++
 			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte(`{"message":"login_required","status":"fail"}`))
 		}))
 		defer server.Close()
 		
@@ -563,13 +566,13 @@ func TestDoRequestWithRetry(t *testing.T) {
 		req, err := http.NewRequest("GET", server.URL, nil)
 		require.NoError(t, err)
 		
-		_, err = client.doRequestWithRetry(req)
-		assert.Error(t, err)
-		assert.Equal(t, 1, attempts) // Should not retry auth errors
-		
-		var igErr *errors.Error
-		assert.ErrorAs(t, err, &igErr)
-		assert.Equal(t, errors.ErrorTypeAuth, igErr.Type)
+		// 401 is returned to caller (not retried) so JSON body can be inspected
+		resp, err := client.doRequestWithRetry(req)
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+		assert.Equal(t, 1, attempts)
+		resp.Body.Close()
 	})
 }
 

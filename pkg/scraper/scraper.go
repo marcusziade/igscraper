@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -232,14 +231,16 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 				return fmt.Errorf("session expired - requires new login")
 			}
 
-			// 401 could be temporary rate limiting - worth retrying
 			var waitTime time.Duration
-			if strings.Contains(errStr, "401") || strings.Contains(errStr, "auth") {
-				waitTime = 2 * time.Hour
-				ui.PrintWarning("Rate Limited", fmt.Sprintf("Instagram is temporarily blocking. Waiting %v", waitTime))
-				ui.PrintInfo("Auto-Retry", "Will keep trying every 2 hours. Press Ctrl+C to stop.")
-			} else {
+			if strings.Contains(errStr, "rate") || strings.Contains(errStr, "Please wait") || strings.Contains(errStr, "429") {
 				waitTime = 5 * time.Minute
+				ui.PrintWarning("Rate Limited", fmt.Sprintf("Instagram is temporarily blocking. Waiting %v", waitTime))
+				ui.PrintInfo("Auto-Retry", "Will retry automatically. Press Ctrl+C to stop.")
+			} else if strings.Contains(errStr, "401") || strings.Contains(errStr, "auth") {
+				waitTime = 15 * time.Minute
+				ui.PrintWarning("Auth / Soft Block", fmt.Sprintf("Waiting %v before retry. If this persists, run: igscraper auth login", waitTime))
+			} else {
+				waitTime = 2 * time.Minute
 				ui.PrintWarning("Temporary Error", fmt.Sprintf("Waiting %v before retry", waitTime))
 			}
 
@@ -368,25 +369,29 @@ func (s *Scraper) downloadUserPhotosWithOptions(username string, resume bool, fo
 			var waitTime time.Duration
 			errStr := err.Error()
 
-			// Check for dead session first
 			if strings.Contains(errStr, "302") || strings.Contains(errStr, "session expired") {
-				// Session is dead, but we already have user ID from initial fetch
-				// Just wait longer and hope user fixes it
-				waitTime = 4 * time.Hour
-				ui.PrintWarning("Session Invalid", "Instagram session expired. Will retry in 4 hours.")
+				waitTime = 30 * time.Minute
+				ui.PrintWarning("Session Invalid", "Instagram session expired. Will retry in 30 minutes.")
 				ui.PrintInfo("Fix Now", "Run 'igscraper auth login' in another terminal to update credentials")
-			} else if strings.Contains(errStr, "401") || strings.Contains(errStr, "auth") {
-				// This might be temporary rate limiting
-				waitTime = time.Duration(60+consecutiveErrors*30) * time.Minute
+			} else if strings.Contains(errStr, "rate") || strings.Contains(errStr, "Please wait") || strings.Contains(errStr, "429") {
+				// Soft rate limit ("Please wait a few minutes") — short backoff
+				waitTime = time.Duration(3+consecutiveErrors*2) * time.Minute
+				if waitTime > 20*time.Minute {
+					waitTime = 20 * time.Minute
+				}
 				s.logger.Info("Rate limited - will wait and retry")
 				ui.PrintWarning("Rate Limited", fmt.Sprintf("Instagram is blocking requests. Waiting %v before retry (attempt %d)", waitTime, consecutiveErrors))
-			} else if strings.Contains(errStr, "429") {
-				// Explicit rate limit - wait even longer
-				waitTime = time.Hour
-				ui.PrintWarning("Rate Limit Hit", fmt.Sprintf("Instagram rate limit detected. Waiting %v before retry", waitTime))
+			} else if strings.Contains(errStr, "401") || strings.Contains(errStr, "auth") {
+				waitTime = time.Duration(5+consecutiveErrors*5) * time.Minute
+				if waitTime > 30*time.Minute {
+					waitTime = 30 * time.Minute
+				}
+				ui.PrintWarning("Auth / Soft Block", fmt.Sprintf("Waiting %v before retry (attempt %d). Re-login if this persists.", waitTime, consecutiveErrors))
 			} else {
-				// Other errors - shorter backoff
 				waitTime = time.Duration(consecutiveErrors) * retryDelay
+				if waitTime < retryDelay {
+					waitTime = retryDelay
+				}
 				ui.PrintWarning("Temporary Error", fmt.Sprintf("Waiting %v before retry (attempt %d)", waitTime, consecutiveErrors))
 			}
 
@@ -628,17 +633,19 @@ func (s *Scraper) fetchMediaBatchFallback(username, userID, endCursor string) ([
 		s.logger.WithError(err).Error("Failed to fetch profile page")
 		return nil, instagram.PageInfo{}, err
 	}
+	if resp == nil {
+		return nil, instagram.PageInfo{}, fmt.Errorf("empty response fetching profile page")
+	}
 	defer resp.Body.Close()
+
+	if resp.Body == nil {
+		return nil, instagram.PageInfo{}, fmt.Errorf("empty response body fetching profile page")
+	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		s.logger.WithError(err).Error("Failed to read profile page")
 		return nil, instagram.PageInfo{}, err
-	}
-
-	// Save HTML for debugging (temporary)
-	if err := os.WriteFile("/tmp/instagram_debug.html", body, 0644); err != nil {
-		s.logger.WithError(err).Warn("Failed to save debug HTML")
 	}
 
 	// Try to extract media URLs from the HTML
@@ -773,12 +780,20 @@ func (s *Scraper) fetchMediaBatch(username, userID, endCursor string) ([]instagr
 		"end_cursor": endCursor,
 	})
 
-	result, err := s.client.FetchUserMedia(userID, endCursor)
+	result, err := s.client.FetchUserMediaWithUsername(userID, username, endCursor)
 	if err != nil {
 		s.logger.WithError(err).WithFields(map[string]interface{}{
 			"username":   username,
 			"end_cursor": endCursor,
 		}).Error("Failed to fetch media batch")
+
+		errStr := err.Error()
+		// Don't hammer Instagram with HTML scraping when we're auth/rate limited
+		if strings.Contains(errStr, "rate") || strings.Contains(errStr, "auth") ||
+			strings.Contains(errStr, "401") || strings.Contains(errStr, "403") ||
+			strings.Contains(errStr, "session expired") || strings.Contains(errStr, "302") {
+			return nil, instagram.PageInfo{}, err
+		}
 		return s.fetchMediaBatchFallback(username, userID, endCursor)
 	}
 

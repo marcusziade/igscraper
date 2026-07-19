@@ -13,4 +13,5 @@ type InstagramClient interface {
 	DownloadPhoto(photoURL string) ([]byte, error)
 	FetchUserProfile(username string) (*instagram.InstagramResponse, error)
 	FetchUserMedia(userID string, after string) (*instagram.InstagramResponse, error)
+	FetchUserMediaWithUsername(userID, username, after string) (*instagram.InstagramResponse, error)
 }

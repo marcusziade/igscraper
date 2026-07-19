@@ -39,11 +39,6 @@ var scrapeCmd = &cobra.Command{
 	Short: "Download photos from an Instagram user profile",
 	Long: `Download photos from an Instagram user's profile with advanced options.
 
-⚠️  WARNING - CURRENTLY NON-FUNCTIONAL (August 2025)
-  Instagram has updated their API security and this tool cannot currently
-  download photos. Authentication succeeds but media fetching is blocked.
-  See: https://github.com/marcusziade/igscraper#current-status
-
 AUTHENTICATION:
   This command requires valid Instagram credentials configured through:
   • Stored credentials:  igscraper auth login
@@ -118,13 +113,6 @@ func init() {
 
 func runScrape(cmd *cobra.Command, args []string) {
 	username := strings.TrimSpace(args[0])
-
-	// Show warning about current non-functional status
-	if !useTUI {
-		ui.PrintWarning("NOTICE", "Instagram API has changed - this tool may not work")
-		ui.PrintInfo("Status", "See https://github.com/marcusziade/igscraper for updates")
-		fmt.Println()
-	}
 
 	// Set quiet mode if log level is error
 	if logLevel == "error" {

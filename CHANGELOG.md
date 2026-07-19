@@ -1,5 +1,16 @@
 # Changelog
 
+## [API restore] - 2026-07-19
+
+### Fixed
+- Restored media fetching after Instagram's mid-2025 endpoint changes
+- First media page seeded from `web_profile_info` (returns timeline edges + cursor)
+- Feed REST + modern GraphQL `doc_id` POST fallbacks for pagination
+- Soft rate-limit 401s ("Please wait a few minutes") classified as rate limits, not dead sessions
+- Sane retry backoff (minutes, not multi-hour waits) for temporary blocks
+- Nil-safe response URL handling; removed panic paths in HTML fallback
+- Removed obsolete "non-functional" warnings from CLI, README, and docs site
+
 ## [Concurrent Downloads] - 2025-07-02
 
 ### Added

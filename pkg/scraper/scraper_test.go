@@ -238,6 +238,10 @@ func (m *mockInstagramClient) FetchUserProfile(username string) (*instagram.Inst
 }
 
 func (m *mockInstagramClient) FetchUserMedia(userID string, after string) (*instagram.InstagramResponse, error) {
+	return m.FetchUserMediaWithUsername(userID, "", after)
+}
+
+func (m *mockInstagramClient) FetchUserMediaWithUsername(userID, username, after string) (*instagram.InstagramResponse, error) {
 	// For simplicity in tests, we can use GetJSON internally
 	var response instagram.InstagramResponse
 	url := instagram.GetMediaURL(userID, after)

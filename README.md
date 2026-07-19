@@ -1,28 +1,22 @@
-# Instagram Photo Scraper - Netrunner Edition
+# igscraper (superseded)
 
-> [!IMPORTANT]
-> ## ⚠️ CURRENTLY NON-FUNCTIONAL - Instagram API Changes (August 2025)
-> 
-> **This scraper is currently not working due to recent Instagram API security updates.**
-> 
-> Instagram has implemented new anti-automation measures that prevent this tool from accessing media content, even with valid session credentials. While the authentication appears to succeed, Instagram now blocks the actual photo fetching with 401 errors.
-> 
-> **What happened:**
-> - Instagram updated their API security in late August 2025
-> - The `/api/v1/feed/user/` endpoint now requires additional verification
-> - Standard session cookies are no longer sufficient for automated access
-> 
-> **Current status:**
-> - ❌ Cannot download photos (401 authentication errors)
-> - ❌ Session cookies alone are insufficient
-> - ✅ Core application logic remains solid
-> - ✅ Will resume working if/when Instagram API access is restored
-> 
-> This is part of Instagram's ongoing efforts to prevent automated data collection. We're monitoring the situation, but there is no immediate fix available.
-> 
-> ---
+> **This project is superseded by [`imago`](https://github.com/guitaripod/imago)** — a ground-up Rust rewrite.
+>
+> - Homepage: [midgarcorp.cc/imago](https://midgarcorp.cc/imago)
+> - Full media (photos, videos, carousels), watchlist + weekly sync, agent-native CLI
+>
+> ```bash
+> cargo install --git https://github.com/guitaripod/imago
+> imago guide
+> ```
+>
+> The Go `igscraper` tree is frozen. Use **imago** for new work.
+
+---
 
 A powerful Instagram photo downloader with cyberpunk aesthetics, built in Go.
+
+> **Requires a logged-in browser session** (`sessionid` + `csrftoken`). Instagram soft-rate-limits aggressive use with temporary 401s (“Please wait a few minutes”) — back off and retry; re-login if the session is dead (302 to login).
 
 ## Features
 
